@@ -1,0 +1,105 @@
+# Setlist mode lock (liste vs document) — design
+
+## Contexte / problème
+
+Une setlist propose deux vues de contenu libre : "liste" (`text_notes`, notes texte interleaved avec les chansons) et "document" (`layout_document`, éditeur riche TipTap). Aujourd'hui, `setlistView` est un simple état d'UI local (`SetlistEditor.tsx:161`), non persisté, et les deux vues opèrent sur la **même** setlist en parallèle. `layout_document` est initialisé une seule fois depuis `text_notes` à la première ouverture du mode document (`buildInitialDocument`), puis les deux contenus évoluent **indépendamment** — c'est documenté comme hors scope dans `docs/superpowers/specs/2026-06-14-setlist-document-editor-design.md`.
+
+Conséquence : une chanson ajoutée en mode liste après création du `layout_document` n'apparaît jamais dans le document ni dans l'export PDF (qui lit exclusivement `layout_document`, cf. `utils/setlistDocumentPdf.ts` et `SetlistEditor.tsx` `exportToPDF`). L'utilisateur perçoit un manque d'isomorphisme entre les deux vues et un export qui ne reflète pas ses modifications en mode liste.
+
+## Décision
+
+Le mode (liste ou document) devient un attribut **figé à la création** de la setlist. Une setlist n'a plus jamais qu'une seule représentation de contenu libre active pendant toute sa vie — la divergence devient structurellement impossible.
+
+## 1. Schéma & types
+
+Nouvelle migration `supabase/migrations/<timestamp>_add_mode_to_setlists.sql` :
+
+```sql
+alter table public.setlists
+  add column mode text not null default 'list' check (mode in ('list', 'document'));
+
+update public.setlists set layout_document = null;
+```
+
+- La colonne est ajoutée avec `DEFAULT 'list'`, donc toutes les lignes existantes sont automatiquement backfillées à `'list'` par l'`ALTER TABLE`.
+- Le `layout_document` de toute setlist existante est effacé (perte assumée du contenu document déjà produit, comme décidé) — cohérent avec le fait que ces setlists deviennent définitivement `mode = 'list'`.
+
+`types.ts` — `Setlist` interface (actuellement lignes 41-50) :
+
+```ts
+export interface Setlist {
+  id: string;
+  user_id: string;
+  group_id?: string | null;
+  title: string;
+  created_at: string;
+  mode: 'list' | 'document';
+  text_notes?: SetlistTextNote[];
+  layout_document?: TiptapDoc | null;
+  songs?: Song[];
+}
+```
+
+## 2. Création d'une setlist
+
+Le formulaire inline "Create New Setlist" (`SetlistEditor.tsx:672-679`) reçoit un sélecteur segmenté "Liste" / "Document" (nouvel état local, ex. `newSetlistMode`, initialisé à `'list'`).
+
+`handleCreateSetlist` (`SetlistEditor.tsx:252-264`) inclut `mode: newSetlistMode` dans le payload d'insertion Supabase.
+
+La setlist virtuelle "Favoris" (`isVirtual`) n'est pas concernée — elle reste toujours en mode liste, sans passer par ce formulaire.
+
+## 3. Verrouillage du mode / suppression de la bascule
+
+Les boutons "Liste" / "Document" (`SetlistEditor.tsx:910-925`, rendus `!isVirtual`) sont supprimés. Le rendu de la vue (branche `list` vs `<SetlistDocumentEditor>`, lignes ~978 et ~1157-1168) se base uniquement sur `currentSetlist.mode` — plus d'état `setlistView` local mutable par l'utilisateur.
+
+- Setlist `mode: 'document'` : comportement actuel inchangé (édition TipTap, ajout de chansons via `songBlock`, autosave).
+- Setlist `mode: 'list'` : ne possède jamais de `layout_document` ; toute la gestion (chansons + notes texte interleaved, `persistTextNotes`) reste inchangée.
+
+`buildInitialDocument` (`utils/setlistDocument.ts:32-45`) reste inchangée et continue d'être utilisée par `SetlistDocumentEditor.tsx` (`buildInitialContent`, ligne 37-47) pour générer le document TipTap initial la première fois qu'une setlist `document` est ouverte. Avec le mode figé, une setlist `document` n'a jamais de `text_notes` ni de chansons avant sa première ouverture (elles ne peuvent être ajoutées que depuis l'éditeur document lui-même) : `buildInitialDocument(setlistItems)` reçoit donc systématiquement un tableau vide et produit un document TipTap ne contenant qu'un paragraphe vide — comportement correct et suffisant, aucun changement requis sur ce fichier.
+
+## 4. Export PDF selon le mode
+
+Nouveau fichier `utils/setlistListPdf.ts`, exportant `exportSetlistListToPdf(setlistItems: SetlistItem[], pdfTitle: string): jsPDF`. Il réutilise directement les briques bas-niveau de `utils/pdfRender.ts` (`PdfContext`, `startNewPage`, `sanitizePdfText`, `renderSongToPdf`) et ajoute un petit renderer `renderTextNoteToPdf(ctx, note: SetlistTextNote)` (texte simple avec couleur/taille, pas de nœuds TipTap à interpréter). Il parcourt `setlistItems` — déjà la séquence unique et ordonnée chansons+notes utilisée par le rendu de la vue liste — dans l'ordre, sans conversion intermédiaire.
+
+`exportToPDF` (`SetlistEditor.tsx`, ~ligne 500-507) devient :
+
+```ts
+const doc = currentSetlist.mode === 'document'
+  ? exportLayoutDocumentToPdf(currentSetlist.layout_document ?? buildInitialDocument(setlistItems), setlistItems, pdfTitle)
+  : exportSetlistListToPdf(setlistItems, pdfTitle);
+doc.save(`${pdfTitle}.pdf`);
+```
+
+(Le fallback `?? buildInitialDocument(setlistItems)` est inchangé par rapport au code actuel — filet de sécurité si le PDF est exporté avant que l'effet de persistance initial de `SetlistDocumentEditor` n'ait eu le temps de s'exécuter.)
+
+## 5. Duplication d'une setlist
+
+`executeDuplicateSetlist` (`SetlistEditor.tsx:288-331`) copie aujourd'hui `title`, `group_id`, `text_notes` et les `setlist_songs`, mais omet `layout_document` — une setlist document dupliquée perd donc silencieusement son contenu (la copie repart avec un document vide/`null`).
+
+Le payload d'insertion est complété pour que la copie hérite du `mode` de l'originale, avec son contenu associé :
+
+```js
+.insert([{
+  title: `${original.title} (copie)`,
+  user_id: user.id,
+  group_id: original.group_id ?? null,
+  mode: original.mode,
+  text_notes: original.mode === 'list' ? (original.text_notes || []) : [],
+  layout_document: original.mode === 'document' ? (original.layout_document ?? null) : null,
+}])
+```
+
+Une setlist document dupliquée reste `document` et copie son `layout_document`, mais **pas verbatim** : les nœuds `songBlock` référencent `setlist_songs.id` via l'attribut `setlistSongId` (`SetlistDocumentEditor.tsx:154`), qui pointerait sinon vers les lignes `setlist_songs` de l'originale.
+
+Aujourd'hui, la duplication des `setlist_songs` (lignes 309-323) ne capture aucune correspondance ancien id → nouvel id (le `select` initial ne remonte que `song_id, position, transpose`, et l'`insert` n'utilise pas `.select()`). Il faut donc modifier cette étape pour :
+1. Sélectionner aussi `id` sur les `setlist_songs` d'origine.
+2. Utiliser `.select()` sur l'insert des nouvelles lignes pour récupérer leurs ids générés.
+3. Construire une map `ancien setlistSongId → nouveau setlistSongId` (par position, puisque l'ordre d'insertion suit celui de la sélection).
+4. Parcourir le `layout_document` copié et réécrire l'attribut `setlistSongId` de chaque nœud `songBlock` via cette map avant de l'insérer dans le payload de la nouvelle setlist.
+
+Une setlist liste dupliquée reste `list` et ne copie que `text_notes`, comme aujourd'hui (pas de `setlistSongId` à remapper, les notes texte n'en contiennent pas).
+
+## Hors scope
+
+- Pas de conversion/migration d'une setlist `document` existante vers `list` (ou inversement) après cette migration one-shot : le choix est définitif, aucune UI de conversion n'est prévue.
+- Pas de récupération du contenu `layout_document` effacé lors de la migration.

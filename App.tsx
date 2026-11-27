@@ -337,7 +337,7 @@ const App: React.FC = () => {
     }
 
     if (currentView === 'profile') {
-      return session ? <Profile user={session.user} songs={songs} onNavigateToGroups={() => setCurrentView('groups')} /> : <AuthRequiredState title="Votre profil" desc="Créez un compte pour gérer votre profil, suivre votre répertoire et le retrouver sur tous vos appareils." />;
+      return session ? <Profile user={session.user} songs={songs} groupsCount={groups.length} theme={theme} onThemeChange={(t) => { if (t !== theme) toggleTheme(); }} onSignOut={handleSignOut} onNavigateToGroups={() => setCurrentView('groups')} /> : <AuthRequiredState title="Votre profil" desc="Créez un compte pour gérer votre profil, suivre votre répertoire et le retrouver sur tous vos appareils." />;
     }
 
     if (currentView === 'setlists') {
@@ -356,6 +356,7 @@ const App: React.FC = () => {
       return session ? (
         <GroupManager 
           user={session.user}
+          songs={songs}
           onClose={() => setCurrentView('landing')}
         />
       ) : <AuthRequiredState title="Groupes" desc="Invitez les membres de votre groupe, partagez vos arrangements et préparez les répétitions ensemble." />;

@@ -9,6 +9,7 @@ import { KeyBadge } from './ui/Brand';
 import CommentsSection from './CommentsSection';
 import ChordTooltip from './ChordTooltip';
 import { jsPDF } from 'jspdf';
+import { registerPdfFonts, normalizePdfText, fallbackPdfText, PDF_FONT } from '../utils/pdfFonts';
 
 interface SongSheetProps {
   song: Song;
@@ -292,70 +293,67 @@ const SongSheet: React.FC<SongSheetProps> = ({
     setFontSize(prev => Math.max(0.7, Math.min(prev + delta, 4.0)));
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     const doc = new jsPDF();
-    const margin = 10;
+    const hasFont = await registerPdfFonts(doc);
+    const font = hasFont ? PDF_FONT : 'courier';
+    const clean = hasFont ? normalizePdfText : fallbackPdfText;
+    doc.setLanguage('fr');
+    doc.setProperties({ title: song.title, author: song.artist || '', creator: 'Unison' });
+
+    const margin = 15;
     const lineHeight = 6;
-    doc.setFontSize(24);
-    doc.setFont("helvetica", "bold");
-    doc.text(song.title, margin, 20);
+    const pageBottom = 280;
+    doc.setTextColor(22, 24, 29);
+    doc.setFontSize(22);
+    doc.setFont(font, 'bold');
+    const titleLines: string[] = doc.splitTextToSize(clean(song.title), 210 - margin * 2);
+    doc.text(titleLines, margin, 22);
+    let cursorY = 22 + (titleLines.length - 1) * 9 + 8;
     doc.setFontSize(12);
-    doc.setFont("helvetica", "normal");
-    const keyText = transposeSemitones !== 0 ? `${song.key} -> ${transpose(song.key, transposeSemitones)}` : song.key;
-    doc.text(`${song.artist} • ${keyText}`, margin, 28);
-    let cursorY = 40;
-    doc.setFont("courier", "normal");
+    doc.setFont(font, 'normal');
+    const keyText = transposeSemitones !== 0 ? `${song.key} → ${transpose(song.key, transposeSemitones)}` : song.key;
+    const meta = [song.artist, keyText ? `Tonalité : ${keyText}` : ''].filter(Boolean).join(' · ');
+    doc.setTextColor(90, 95, 105);
+    doc.text(clean(hasFont ? meta : meta.replace(' · ', ' - ')), margin, cursorY);
+    cursorY += 12;
     doc.setFontSize(11);
-    const sanitizePdfText = (text: string) => {
-      return text
-        .replace(/[\u00A0\u2000-\u200b\u202f\u205f\u3000]/g, ' ')
-        .replace(/\t/g, '    ')
-        .replace(/[‘’`]/g, "'")
-        .replace(/[“”]/g, '"')
-        .replace(/…/g, '...')
-        .replace(/œ/g, 'oe').replace(/Œ/g, 'Oe')
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    };
 
     const lines = transposeContent(song.content, transposeSemitones).split(/\r?\n/);
     lines.forEach(line => {
-      if (cursorY > 280) { doc.addPage(); cursorY = 20; }
-      
+      if (cursorY > pageBottom) { doc.addPage(); cursorY = 20; }
+
       const sectionName = getSectionType(line);
       if (sectionName) {
-        cursorY += 4; 
-        doc.setFont("courier", "bold"); 
-        doc.setTextColor(0, 0, 0);
-        doc.text(sanitizePdfText(line.trim().toUpperCase()), margin, cursorY);
-        doc.setFont("courier", "normal"); 
-        cursorY += lineHeight; 
+        cursorY += 4;
+        doc.setFont(font, 'bold');
+        doc.setTextColor(22, 24, 29);
+        doc.text(clean(sectionName.toUpperCase()), margin, cursorY);
+        cursorY += lineHeight;
         return;
       }
 
       // Render line with highlighted chords
       const parts = line.split(/\[(.*?)\]/g);
       let currentX = margin;
-      
+
       parts.forEach((part, i) => {
         const isChord = i % 2 === 1;
-        if (isChord) {
-          doc.setFont("courier", "bold");
-          doc.setTextColor(36, 64, 214); // Unison blue
-        } else {
-          doc.setFont("courier", "normal");
-          doc.setTextColor(0, 0, 0); // Black
-        }
-        
-        const textToRender = sanitizePdfText(part);
+        doc.setFont(font, isChord ? 'bold' : 'normal');
+        if (isChord) doc.setTextColor(36, 64, 214); // Unison blue
+        else doc.setTextColor(22, 24, 29);
+
+        const textToRender = clean(part);
         if (textToRender) {
           doc.text(textToRender, currentX, cursorY);
           currentX += doc.getTextWidth(textToRender);
         }
       });
-      
+
       cursorY += lineHeight;
     });
-    doc.save(`${song.title}.pdf`);
+    const fileName = song.title.normalize('NFC').replace(/[\\/:*?"<>|]+/g, '-').trim() || 'chanson';
+    doc.save(`${fileName}.pdf`);
   };
 
   // Unique chords of the song (transposed), for the diagrams aside.
@@ -380,7 +378,6 @@ const SongSheet: React.FC<SongSheetProps> = ({
     ? (song.key || '0')
     : `${song.key ? song.key + ' → ' + transpose(song.key, transposeSemitones) : (transposeSemitones > 0 ? '+' : '') + transposeSemitones}`;
 
-  let sectionIndex = 0;
   // Songs written with chord-only lines above the lyrics need a monospaced face to stay aligned;
   // songs with inline [chords] can use the reading face, chords stacked above each syllable.
   const usesChordLines = parsedLines.some(l => !l.isSection && isChordLine(l.segments));
@@ -563,10 +560,8 @@ const SongSheet: React.FC<SongSheetProps> = ({
           <div className={`select-text transition-all ${usesChordLines ? 'font-mono' : 'font-sans'} ${isPinching ? 'duration-0' : 'duration-200'}`} style={{ fontSize: `${fontSize}rem` }}>
             {parsedLines.map((lineObj, lineIdx) => {
               if (lineObj.isSection) {
-                const mark = String.fromCharCode(65 + (sectionIndex++ % 26));
                 return (
                   <div key={lineIdx} className="flex items-center gap-2.5 mt-8 mb-3 first:mt-0 font-sans" style={{ fontSize: 16 }}>
-                    <span className="inline-flex items-center justify-center w-6 h-6 border-[1.5px] border-ink dark:border-slate-200 rounded font-display font-extrabold text-sm">{mark}</span>
                     <h2 className="m-0 font-sans text-xs font-semibold uppercase text-slate-500 dark:text-slate-400" style={{ letterSpacing: '0.08em' }}>{lineObj.text}</h2>
                   </div>
                 );

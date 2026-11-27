@@ -3,7 +3,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { Song, Group } from '../types';
 
-export const useAppData = (session: any, currentView: string, currentSongId: string | null) => {
+/**
+ * @param authReady vrai une fois la session Supabase restaurée : évite un premier
+ *                  chargement « visiteur » suivi d'un second une fois connecté.
+ */
+export const useAppData = (session: any, authReady: boolean, currentView: string, currentSongId: string | null) => {
+  // On dépend de l'identifiant et non de l'objet session, qui change à chaque
+  // rafraîchissement du jeton et relancerait tout le chargement.
+  const userId: string | null = session?.user?.id ?? null;
   const [songs, setSongs] = useState<Song[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
@@ -50,11 +57,11 @@ export const useAppData = (session: any, currentView: string, currentSongId: str
   };
 
   const fetchGroups = useCallback(async () => {
-    if (!session) return;
+    if (!userId) return;
     const { data, error } = await supabase
       .from('group_members')
       .select('*, groups(*)')
-      .eq('user_id', session.user.id);
+      .eq('user_id', userId);
     
     if (!error && data) {
       const accepted = data.filter((m: any) => m.status === 'accepted').map((m: any) => m.groups).filter(Boolean);
@@ -62,22 +69,22 @@ export const useAppData = (session: any, currentView: string, currentSongId: str
       setGroups(accepted);
       setPendingInvitesCount(pending.length);
     }
-  }, [session]);
+  }, [userId]);
 
   const fetchUserProfile = useCallback(async () => {
-    if (!session) return;
+    if (!userId) return;
     // La colonne users.is_admin n'est pas lisible directement (RLS) : on passe par la fonction.
     const { data, error } = await supabase.rpc('is_admin');
     if (!error) {
       setIsAdmin(data === true);
     }
-  }, [session]);
+  }, [userId]);
 
   const fetchSongs = useCallback(async () => {
     try {
       let query = supabase.from('songs').select('*');
 
-      if (session) {
+      if (userId) {
         // Logged in: fetch everything accessible
         query = query.order('updated_at', { ascending: false });
       } else {
@@ -90,11 +97,11 @@ export const useAppData = (session: any, currentView: string, currentSongId: str
 
       // Fetch Favorites only if logged in
       let favoriteIds = new Set();
-      if (session) {
+      if (userId) {
         const { data: favData } = await supabase
           .from('favorites')
           .select('song_id')
-          .eq('user_id', session.user.id);
+          .eq('user_id', userId);
         if (favData) favoriteIds = new Set(favData.map((f: any) => f.song_id));
       }
 
@@ -121,17 +128,21 @@ export const useAppData = (session: any, currentView: string, currentSongId: str
     } catch (error: any) {
       console.error('Error fetching songs:', error.message);
     }
-  }, [session]);
+  }, [userId]);
 
-  // Initial Fetch
+  // Chargement initial, puis à chaque connexion / déconnexion.
+  // `loading` reste vrai jusqu'à la fin du premier chargement complet ;
+  // les rechargements suivants ne réaffichent pas l'écran de chargement.
   useEffect(() => {
-    fetchSongs();
-    if (session) {
-      fetchGroups();
-      fetchUserProfile();
+    if (!authReady) return;
+    if (!userId) {
+      setGroups([]);
+      setPendingInvitesCount(0);
+      setIsAdmin(false);
     }
-    setLoading(false);
-  }, [session, fetchSongs, fetchGroups, fetchUserProfile]);
+    Promise.all([fetchSongs(), fetchGroups(), fetchUserProfile()])
+      .finally(() => setLoading(false));
+  }, [authReady, userId, fetchSongs, fetchGroups, fetchUserProfile]);
 
   return {
     songs,

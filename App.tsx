@@ -30,9 +30,11 @@ import {
   X
 } from 'lucide-react';
 import { LogoMark } from './components/ui/Brand';
+import { Toaster, notifyError } from './components/ui/Toast';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [isAppInstalled, setIsAppInstalled] = useState(false);
@@ -132,7 +134,7 @@ const App: React.FC = () => {
         setCurrentView('reset-password');
         window.history.replaceState(null, '', window.location.pathname);
       }
-    });
+    }).finally(() => setAuthReady(true));
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
@@ -155,15 +157,18 @@ const App: React.FC = () => {
     loading, 
     publicSongData, 
     isAdmin 
-  } = useAppData(session, currentView, currentSongId);
+  } = useAppData(session, authReady, currentView, currentSongId);
 
   const handleToggleFavorite = async (songId: string, isFav: boolean) => {
     if (!session) return;
     setSongs(prev => prev.map(s => s.id === songId ? { ...s, is_favorite: isFav } : s));
-    if (isFav) {
-      await supabase.from('favorites').insert({ user_id: session.user.id, song_id: songId });
-    } else {
-      await supabase.from('favorites').delete().eq('user_id', session.user.id).eq('song_id', songId);
+    const { error } = isFav
+      ? await supabase.from('favorites').insert({ user_id: session.user.id, song_id: songId })
+      : await supabase.from('favorites').delete().eq('user_id', session.user.id).eq('song_id', songId);
+    if (error) {
+      // Retour arrière de la mise à jour optimiste.
+      setSongs(prev => prev.map(s => s.id === songId ? { ...s, is_favorite: !isFav } : s));
+      notifyError(isFav ? 'Impossible d\'ajouter aux favoris.' : 'Impossible de retirer des favoris.', error);
     }
   };
 
@@ -215,7 +220,8 @@ const App: React.FC = () => {
       }
       if (onSuccess) onSuccess(); else setCurrentView('main');
     } catch (error: any) {
-      console.error('Error saving song:', error.message);
+      // L'éditeur reste ouvert : les modifications ne sont pas perdues.
+      notifyError('Impossible d\'enregistrer la chanson.', error);
     }
   };
 
@@ -228,7 +234,7 @@ const App: React.FC = () => {
        setCurrentSongId(null);
        setCurrentView('main');
      } catch(e: any) {
-       console.error("Delete error:", e.message);
+       notifyError('Impossible de supprimer la chanson.', e);
      }
   };
 
@@ -491,6 +497,7 @@ const App: React.FC = () => {
       
       {showAuthModal && <Auth onClose={() => setShowAuthModal(false)} />}
       {installBanner}
+      <Toaster />
       
       {!isMobile && (
         <Sidebar 

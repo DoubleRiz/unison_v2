@@ -37,15 +37,12 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({ session, songs, groups, o
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      let { data, error } = await supabase
+      const { data, error } = await supabase
         .from('setlists')
         .select('*, setlist_songs(count)')
         .order('created_at', { ascending: false })
         .limit(3);
-      if (error) {
-        // Fallback if the embedded count is not available on this schema.
-        ({ data } = await supabase.from('setlists').select('*').order('created_at', { ascending: false }).limit(3));
-      }
+      if (error) console.error('Error fetching setlists:', error);
       if (!cancelled && data) {
         setSetlists(data.map((s: any) => ({ ...s, song_count: s.setlist_songs?.[0]?.count })));
       }

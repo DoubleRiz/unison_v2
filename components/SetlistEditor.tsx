@@ -34,6 +34,8 @@ import { KeyBadge } from './ui/Brand';
 import { Segmented } from './ui/Segmented';
 import { Modal } from './ui/Modal';
 import { inputCls, labelCls, secondaryBtn } from './ui/styles';
+import { DEFAULT_SETLIST_ICON, getSetlistIcon } from '../constants/setlistIcons';
+import { SetlistIconPicker } from './SetlistIconPicker';
 
 const FAVORITES_ID = 'virtual_favorites';
 
@@ -49,8 +51,7 @@ type SetlistWithCount = Setlist & { song_count?: number };
 
 const generateId = () => `txt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-const fmtMonth = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { month: 'short' });
-const fmtDay = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit' });
+const fmtShort = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 const fmtLong = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
 const morceaux = (n: number) => `${n} morceau${n > 1 ? 'x' : ''}`;
@@ -74,6 +75,9 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
   const [newTitle, setNewTitle] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
   const [newSetlistMode, setNewSetlistMode] = useState<'list' | 'document'>('list');
+  const [newIcon, setNewIcon] = useState<string>(DEFAULT_SETLIST_ICON);
+  const [iconEditId, setIconEditId] = useState<string | null>(null);
+  const [iconError, setIconError] = useState<string | null>(null);
 
   // Detail view
   const [searchQuery, setSearchQuery] = useState('');
@@ -271,20 +275,40 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
     setNewTitle('');
     setSelectedGroupId('');
     setNewSetlistMode('list');
+    setNewIcon(DEFAULT_SETLIST_ICON);
     setShowCreateModal(true);
   };
 
   const handleCreateSetlist = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
-    const payload: any = { title: newTitle.trim(), user_id: user.id, mode: newSetlistMode };
+    const payload: any = { title: newTitle.trim(), user_id: user.id, mode: newSetlistMode, icon: newIcon };
     if (selectedGroupId) payload.group_id = selectedGroupId;
-    const { data, error } = await supabase.from('setlists').insert([payload]).select().single();
+    let { data, error } = await supabase.from('setlists').insert([payload]).select().single();
+    if (error && /icon/.test(error.message)) {
+      // Colonne `icon` pas encore migrée : on crée la setlist sans icône.
+      const { icon: _icon, ...rest } = payload;
+      ({ data, error } = await supabase.from('setlists').insert([rest]).select().single());
+    }
     if (!error && data) {
       setSetlists([{ ...data, song_count: 0 }, ...setlists]);
       setShowCreateModal(false);
       handleSelectSetlist(data);
     }
+  };
+
+  const handleUpdateSetlistIcon = async (id: string, icon: string) => {
+    setIconError(null);
+    const { error } = await supabase.from('setlists').update({ icon }).eq('id', id);
+    if (error) {
+      setIconError(/icon/.test(error.message)
+        ? 'La colonne « icon » n\'existe pas encore en base : appliquez la migration.'
+        : 'Impossible d\'enregistrer l\'icône.');
+      return;
+    }
+    setSetlists(prev => prev.map(s => s.id === id ? { ...s, icon } : s));
+    setCurrentSetlist(prev => prev && prev.id === id ? { ...prev, icon } : prev);
+    setIconEditId(null);
   };
 
   const handleUpdateSetlistTitle = async (e?: React.FormEvent) => {
@@ -326,6 +350,7 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
         title: `${original.title} (copie)`,
         user_id: user.id,
         group_id: original.group_id ?? null,
+        ...(original.icon ? { icon: original.icon } : {}),
         mode: original.mode,
         text_notes: original.mode === 'list' ? (original.text_notes || []) : [],
         layout_document: null, // patched below once setlist_songs are duplicated, if mode === 'document'
@@ -568,8 +593,18 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
   const groupName = (id?: string | null) => (id ? groups.find(g => g.id === id)?.name : undefined);
 
   // ── Shared dialogs ────────────────────────────────────────────────────────
+  const iconEditSetlist = iconEditId ? setlists.find(s => s.id === iconEditId) : undefined;
   const dialogs = (
     <>
+      {iconEditSetlist && (
+        <Modal title="Changer l'icône" onClose={() => setIconEditId(null)} width="md">
+          <SetlistIconPicker
+            value={iconEditSetlist.icon || DEFAULT_SETLIST_ICON}
+            onChange={(name) => handleUpdateSetlistIcon(iconEditSetlist.id, name)}
+          />
+          {iconError && <p role="alert" className="m-0 px-3 py-2.5 rounded-md bg-red-50 text-red-700 dark:bg-red-900 dark:text-red-300 text-sm">{iconError}</p>}
+        </Modal>
+      )}
       {showDeleteModal && (
         <Modal
           title="Supprimer la setlist ?"
@@ -734,6 +769,10 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
                   {newSetlistMode === 'list' ? 'Les morceaux et les notes s\'enchaînent dans l\'ordre.' : 'Mise en page libre, avec texte riche entre les morceaux.'}
                 </span>
               </div>
+              <div className="flex flex-col gap-1.5">
+                <span className={labelCls} id="lbl-icon">Icône</span>
+                <SetlistIconPicker value={newIcon} onChange={setNewIcon} labelledBy="lbl-icon" />
+              </div>
               {groups.length > 0 && (
                 <label className="flex flex-col gap-1.5">
                   <span className={labelCls}>Partager avec</span>
@@ -811,17 +850,24 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
           )}
 
           {visible.map(s => {
+            const SetlistIcon = getSetlistIcon(s.icon);
             const meta = [
+              `Créée le ${fmtShort(s.created_at)}`,
               groupName(s.group_id) || 'Personnelle',
               s.song_count !== undefined ? morceaux(s.song_count) : null,
               s.mode === 'document' ? 'Document' : null
             ].filter(Boolean).join(' · ');
             return (
               <li key={s.id} className="group flex flex-wrap items-center gap-x-5 gap-y-3 px-1 py-4 border-b border-slate-200 dark:border-slate-800">
-                <span className="w-16 flex flex-col items-center py-1.5 leading-tight rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900" aria-label={`Créée le ${fmtLong(s.created_at)}`}>
-                  <span className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400" style={{ letterSpacing: '0.08em' }}>{fmtMonth(s.created_at)}</span>
-                  <span className="font-display font-extrabold text-[28px] leading-none">{fmtDay(s.created_at)}</span>
-                </span>
+                <button
+                  type="button"
+                  onClick={() => { setIconError(null); setIconEditId(s.id); }}
+                  aria-label={`Changer l'icône de ${s.title}`}
+                  title="Changer l'icône"
+                  className="w-16 h-[58px] flex items-center justify-center rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-cyan-600 dark:text-cyan-400 hover:border-cyan-600 dark:hover:border-cyan-400 transition-colors"
+                >
+                  <SetlistIcon size={24} />
+                </button>
                 <button type="button" onClick={() => handleSelectSetlist(s)} className="flex-[1_1_260px] min-w-0 flex flex-col gap-0.5 text-left">
                   <span className="font-display font-bold text-[21px] leading-tight hover:underline underline-offset-[3px] decoration-1 break-words">{s.title}</span>
                   <span className="text-sm text-slate-600 dark:text-slate-400">{meta}</span>

@@ -24,5 +24,8 @@ dist-ssr
 *.sln
 *.sw?
 db-backup/
-.vercel
 .env*
+!.env.example
+
+# Supabase CLI local cache
+supabase/.temp/

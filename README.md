@@ -77,23 +77,28 @@ Hello darkness my old friend
 
 React 19 · TypeScript · Vite 6 · Supabase (Auth + PostgreSQL) · Tailwind CSS · jsPDF
 
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+## 💻 Développement local
 
-# Run and deploy your AI Studio app
+**Prérequis :** Node.js 20+
 
-This contains everything you need to run your app locally.
+1. Installer les dépendances : `npm install`
+2. Copier `.env.example` en `.env` et renseigner `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY`
+3. Lancer le serveur de dev : `npm run dev` (port 3000)
+4. Tests : `npm test`
 
-View your app in AI Studio: https://ai.studio/apps/drive/1TDreMK6b3_j9IPg1Ls664ZHDDHk8Dodq
+## 🚀 Déploiement (Hostinger)
 
-## Run Locally
+L'application est un site statique généré par Vite :
 
-**Prerequisites:**  Node.js
+- **Commande de build :** `npm run build`
+- **Dossier publié :** `dist/`
+- **Variables d'environnement (au moment du build) :** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 
+Le fichier `public/.htaccess` est copié dans `dist/` au build. Il force le HTTPS, renvoie
+toute route inconnue vers `index.html` et règle le cache : les fichiers hachés de
+`/assets/` sont mis en cache un an, tandis que `index.html`, `sw.js` et `manifest.json`
+ne sont jamais mis en cache pour que les mises à jour de la PWA arrivent immédiatement.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+Pensez à ajouter le domaine Hostinger dans Supabase → Authentication → URL Configuration
+(Site URL et Redirect URLs), sinon les liens de confirmation d'e-mail et de
+réinitialisation de mot de passe pointeront vers l'ancien domaine.

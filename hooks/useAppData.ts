@@ -1,7 +1,12 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { Song, Group } from '../types';
+import { SONG_LIST_COLUMNS, SONG_DETAIL_COLUMNS, fetchAllPages, mapSongListRow, needsContent } from '../utils/songRows';
+
+// Nombre d'identifiants par requête `in(...)` (longueur d'URL raisonnable).
+const DETAIL_CHUNK_SIZE = 150;
+
 
 export const useAppData = (session: any, currentView: string, currentSongId: string | null) => {
   const [songs, setSongs] = useState<Song[]>([]);
@@ -73,55 +78,87 @@ export const useAppData = (session: any, currentView: string, currentSongId: str
     }
   }, [session]);
 
+  // Incrémenté à chaque chargement : un chargement dépassé (changement de session) s'arrête.
+  const songsFetchId = useRef(0);
+
   const fetchSongs = useCallback(async () => {
+    const fetchId = ++songsFetchId.current;
+    const isStale = () => fetchId !== songsFetchId.current;
     try {
-      let query = supabase.from('songs').select('*');
-
+      // Favoris d'abord (paginés eux aussi), pour marquer les chansons dès la première page.
+      const favoriteIds = new Set<string>();
       if (session) {
-        // Logged in: fetch everything accessible
-        query = query.order('updated_at', { ascending: false });
-      } else {
-        // Guest: fetch top public songs for search/random functionality
-        query = query.eq('is_public', true).order('created_at', { ascending: false });
+        await fetchAllPages(
+          (from, to) => supabase
+            .from('favorites')
+            .select('song_id')
+            .eq('user_id', session.user.id)
+            .order('song_id', { ascending: true })
+            .range(from, to),
+          (rows) => rows.forEach((f: any) => favoriteIds.add(f.song_id)),
+          isStale
+        );
       }
+      if (isStale()) return;
 
-      const { data: songsData, error: songsError } = await query;
-      if (songsError) throw songsError;
-
-      // Fetch Favorites only if logged in
-      let favoriteIds = new Set();
-      if (session) {
-        const { data: favData } = await supabase
-          .from('favorites')
-          .select('song_id')
-          .eq('user_id', session.user.id);
-        if (favData) favoriteIds = new Set(favData.map((f: any) => f.song_id));
-      }
-
-      if (songsData) {
-        const mappedSongs: Song[] = songsData.map((s: any) => ({
-          id: s.id,
-          user_id: s.user_id,
-          title: s.title,
-          artist: s.artist,
-          bpm: s.bpm,
-          key: s.original_key,
-          content: s.content,
-          notes: s.notes,
-          youtubeUrl: s.youtube_url,
-          audioUrl: s.audio_url, 
-          is_public: s.is_public,
-          is_favorite: favoriteIds.has(s.id),
-          shared_with_group_id: s.shared_with_group_id,
-          genres: s.genres || [],
-          tags: s.tags || []
-        }));
-        setSongs(mappedSongs);
-      }
+      // Liste allégée (sans content/notes), chargée page par page : la bibliothèque
+      // s'affiche dès la première page puis se complète.
+      const loaded: Song[] = [];
+      await fetchAllPages(
+        (from, to) => {
+          let query = supabase.from('songs').select(SONG_LIST_COLUMNS);
+          query = session
+            ? query.order('updated_at', { ascending: false })
+            : query.eq('is_public', true).order('created_at', { ascending: false });
+          // Départage stable entre pages.
+          return query.order('id', { ascending: true }).range(from, to);
+        },
+        (rows) => {
+          loaded.push(...rows.map((row: any) => mapSongListRow(row, favoriteIds)));
+          const page = [...loaded];
+          // Garde le contenu déjà chargé (chanson ouverte) : sinon elle se viderait au rechargement.
+          setSongs(prev => {
+            const withContent = new Map(prev.filter(s => !needsContent(s)).map(s => [s.id, s]));
+            return page.map(s => {
+              const full = withContent.get(s.id);
+              return full ? { ...s, content: full.content, notes: full.notes, contentLoaded: true } : s;
+            });
+          });
+        },
+        isStale
+      );
+      if (!isStale() && loaded.length === 0) setSongs([]);
     } catch (error: any) {
       console.error('Error fetching songs:', error.message);
     }
   }, [session]);
+
+  /**
+   * Charge le contenu complet (content, notes) des chansons qui ne l'ont pas encore,
+   * met à jour la liste et renvoie les chansons complétées.
+   */
+  const loadSongDetails = useCallback(async (targets: Song[]): Promise<Song[]> => {
+    const missing = [...new Set(targets.filter(needsContent).map(s => s.id))];
+    if (missing.length === 0) return targets;
+
+    const details = new Map<string, { content: string; notes?: string }>();
+    for (let i = 0; i < missing.length; i += DETAIL_CHUNK_SIZE) {
+      const ids = missing.slice(i, i + DETAIL_CHUNK_SIZE);
+      const { data, error } = await supabase.from('songs').select(SONG_DETAIL_COLUMNS).in('id', ids);
+      if (error) {
+        console.error('Error fetching song details:', error.message);
+        continue;
+      }
+      (data || []).forEach((row: any) => details.set(row.id, { content: row.content || '', notes: row.notes || undefined }));
+    }
+
+    const complete = (s: Song): Song => {
+      const d = details.get(s.id);
+      return d && needsContent(s) ? { ...s, ...d, contentLoaded: true } : s;
+    };
+    setSongs(prev => prev.map(complete));
+    return targets.map(complete);
+  }, []);
 
   // Initial Fetch
   useEffect(() => {
@@ -143,6 +180,7 @@ export const useAppData = (session: any, currentView: string, currentSongId: str
     publicSongData,
     isAdmin,
     fetchSongs,
-    fetchGroups
+    fetchGroups,
+    loadSongDetails
   };
 };

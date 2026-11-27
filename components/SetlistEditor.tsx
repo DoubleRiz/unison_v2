@@ -28,6 +28,7 @@ import { SetlistDocumentEditor } from './setlist-document/SetlistDocumentEditor'
 import { TEXT_COLORS, TEXT_SIZES } from '../constants/textNoteStyles';
 import { buildInitialDocument } from '../utils/setlistDocument';
 import { exportLayoutDocumentToPdf } from '../utils/setlistDocumentPdf';
+import { needsContent } from '../utils/songRows';
 import { exportSetlistListToPdf } from '../utils/setlistListPdf';
 import { transpose as transposeChord } from '../utils/musicLogic';
 import { KeyBadge } from './ui/Brand';
@@ -45,6 +46,8 @@ interface SetlistEditorProps {
   groups: Group[];
   onBack: () => void;
   onSaveSong?: (song: Song, onSuccess?: () => void) => Promise<void>;
+  /** Charge le texte des chansons venues de la liste allégée (voir useAppData). */
+  loadSongDetails?: (songs: Song[]) => Promise<Song[]>;
 }
 
 type SetlistWithCount = Setlist & { song_count?: number };
@@ -62,7 +65,7 @@ const primarySm = 'inline-flex items-center justify-center gap-2 h-11 px-4 round
 const dangerBtn = 'inline-flex items-center justify-center gap-2 h-11 px-4 rounded-md bg-red-500 hover:bg-red-600 text-white font-semibold transition-colors';
 
 // ──────────────────────────────────────────────────────────────────────────
-const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, onBack, onSaveSong }) => {
+const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, onBack, onSaveSong, loadSongDetails }) => {
   const [setlists, setSetlists] = useState<SetlistWithCount[]>([]);
   const [currentSetlist, setCurrentSetlist] = useState<Setlist | null>(null);
   const [setlistItems, setSetlistItems] = useState<SetlistItem[]>([]);
@@ -175,6 +178,29 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
       if (setlistItems.length > 0) { setPerformanceIndex(0); setPerformanceMode(true); }
     }
   }, [pendingPerformance, setlistItemsLoadedFor, currentSetlist, setlistItems.length]);
+
+  // Les morceaux venus de la liste allégée n'ont pas leur texte : on le charge
+  // pour le mode scène, l'export PDF et l'édition.
+  const withSongDetails = async (items: SetlistItem[]): Promise<SetlistItem[]> => {
+    const pending = items.flatMap(i => (i.type === 'song' && needsContent(i.song) ? [i.song] : []));
+    if (!loadSongDetails || pending.length === 0) return items;
+    const loaded = new Map((await loadSongDetails(pending)).map(s => [s.id, s]));
+    return items.map(i => (i.type === 'song' && needsContent(i.song) && loaded.has(i.song.id) ? { ...i, song: loaded.get(i.song.id)! } : i));
+  };
+
+  const pendingSongIds = setlistItems
+    .flatMap(i => (i.type === 'song' && needsContent(i.song) ? [i.song.id] : []))
+    .join(',');
+  useEffect(() => {
+    if (!pendingSongIds || !loadSongDetails) return;
+    let cancelled = false;
+    withSongDetails(setlistItems).then(loadedItems => {
+      if (cancelled) return;
+      const loaded = new Map(loadedItems.flatMap(i => (i.type === 'song' && !needsContent(i.song) ? [[i.song.id, i.song] as const] : [])));
+      setSetlistItems(items => items.map(i => (i.type === 'song' && needsContent(i.song) && loaded.has(i.song.id) ? { ...i, song: loaded.get(i.song.id)! } : i)));
+    });
+    return () => { cancelled = true; };
+  }, [pendingSongIds]);
 
   // ── Data fetching ────────────────────────────────────────────────────────
   const fetchSetlists = async () => {
@@ -572,13 +598,14 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
   };
 
   // ── PDF Export ────────────────────────────────────────────────────────────
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     if (!currentSetlist || setlistItems.length === 0) return;
     setShowPdfModal(false);
 
+    const items = await withSongDetails(setlistItems);
     const doc = currentSetlist.mode === 'document'
-      ? exportLayoutDocumentToPdf(currentSetlist.layout_document ?? buildInitialDocument(setlistItems), setlistItems, pdfTitle)
-      : exportSetlistListToPdf(setlistItems, pdfTitle);
+      ? exportLayoutDocumentToPdf(currentSetlist.layout_document ?? buildInitialDocument(items), items, pdfTitle)
+      : exportSetlistListToPdf(items, pdfTitle);
     doc.save(`${pdfTitle}.pdf`);
   };
 
@@ -685,6 +712,7 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
             {currentItem.type === 'song' && onSaveSong && (
               <button
                 onClick={() => setPerformanceEditingSong(currentItem.song)}
+                disabled={needsContent(currentItem.song)}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-ink dark:hover:text-white transition-colors"
               >
                 <Edit2 size={18} />
@@ -712,7 +740,9 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
         </div>
         <div className="flex-1 overflow-y-auto p-6 scroll-smooth bg-slate-100 dark:bg-slate-950">
           <div className="max-w-4xl mx-auto">
-            {currentItem.type === 'song' ? (
+            {currentItem.type === 'song' && needsContent(currentItem.song) ? (
+              <div className="min-h-[400px] flex items-center justify-center text-slate-500 text-sm">Chargement du morceau…</div>
+            ) : currentItem.type === 'song' ? (
               <SongSheet
                 song={currentItem.song}
                 transposeSemitones={currentItem.transpose}

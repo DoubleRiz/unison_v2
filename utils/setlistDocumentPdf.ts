@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { SetlistItem, Song, TiptapDoc } from '../types';
+import { PdfFontSet, STANDARD_FONTS } from './pdfFonts';
 import { PdfContext, renderSongToPdf, renderTextNodeToPdf } from './pdfRender';
 
 const buildSongLookup = (items: SetlistItem[]): Map<string, { song: Song; transpose: number }> => {
@@ -13,20 +14,21 @@ const buildSongLookup = (items: SetlistItem[]): Map<string, { song: Song; transp
 export const exportLayoutDocumentToPdf = (
   layoutDoc: TiptapDoc,
   setlistItems: SetlistItem[],
-  pdfTitle: string
+  pdfTitle: string,
+  doc: jsPDF = new jsPDF(),
+  fonts: PdfFontSet = STANDARD_FONTS
 ): jsPDF => {
-  const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
   const margin = 15;
   const contentWidth = pageWidth - margin * 2;
 
-  const ctx: PdfContext = { doc, margin, contentWidth, pageHeight, cursorY: 20 };
+  const ctx: PdfContext = { doc, margin, contentWidth, pageHeight, cursorY: 20, fonts };
 
   doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont(fonts.text, 'normal');
   doc.setTextColor(150);
-  doc.text(pdfTitle, margin, 10);
+  doc.text(fonts.clean(pdfTitle), margin, 10);
   doc.text('Setlist Export', pageWidth - margin, 10, { align: 'right' });
 
   const songLookup = buildSongLookup(setlistItems);

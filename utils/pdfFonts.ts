@@ -1,4 +1,4 @@
-import type { jsPDF } from 'jspdf';
+import { jsPDF } from 'jspdf';
 
 // Atkinson Hyperlegible Mono (Braille Institute, licence OFL — voir public/fonts/OFL.txt) :
 // police conçue pour la lisibilité, à chasse fixe pour garder les accords alignés sur les paroles.
@@ -72,3 +72,26 @@ export const fallbackPdfText = (text: string): string =>
     .replace(/…/g, '...')
     .replace(/[—–]/g, '-')
     .replace(/œ/g, 'oe').replace(/Œ/g, 'OE');
+
+/** Polices d'un export : `text` pour les titres et notes, `mono` pour les accords et paroles. */
+export interface PdfFontSet {
+  text: string;
+  mono: string;
+  clean: (text: string) => string;
+  /** La police a-t-elle une variante italique ? (Atkinson Mono n'en a pas.) */
+  italic: boolean;
+}
+
+/** Police embarquée : accents et ponctuation française. */
+export const EMBEDDED_FONTS: PdfFontSet = { text: PDF_FONT, mono: PDF_FONT, clean: normalizePdfText, italic: false };
+
+/** Polices standard de jsPDF (repli si la police embarquée ne charge pas). */
+export const STANDARD_FONTS: PdfFontSet = { text: 'helvetica', mono: 'courier', clean: fallbackPdfText, italic: true };
+
+/** Crée un document avec la police embarquée, ou les polices standard en repli. */
+export const createPdfDocument = async (): Promise<{ doc: jsPDF; fonts: PdfFontSet }> => {
+  const doc = new jsPDF();
+  const fonts = (await registerPdfFonts(doc)) ? EMBEDDED_FONTS : STANDARD_FONTS;
+  doc.setLanguage('fr');
+  return { doc, fonts };
+};

@@ -29,6 +29,7 @@ import { TEXT_COLORS, TEXT_SIZES } from '../constants/textNoteStyles';
 import { buildInitialDocument } from '../utils/setlistDocument';
 import { exportLayoutDocumentToPdf } from '../utils/setlistDocumentPdf';
 import { needsContent } from '../utils/songRows';
+import { createPdfDocument } from '../utils/pdfFonts';
 import { exportSetlistListToPdf } from '../utils/setlistListPdf';
 import { transpose as transposeChord } from '../utils/musicLogic';
 import { KeyBadge } from './ui/Brand';
@@ -602,10 +603,10 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
     if (!currentSetlist || setlistItems.length === 0) return;
     setShowPdfModal(false);
 
-    const items = await withSongDetails(setlistItems);
+    const [items, { doc: pdf, fonts }] = await Promise.all([withSongDetails(setlistItems), createPdfDocument()]);
     const doc = currentSetlist.mode === 'document'
-      ? exportLayoutDocumentToPdf(currentSetlist.layout_document ?? buildInitialDocument(items), items, pdfTitle)
-      : exportSetlistListToPdf(items, pdfTitle);
+      ? exportLayoutDocumentToPdf(currentSetlist.layout_document ?? buildInitialDocument(items), items, pdfTitle, pdf, fonts)
+      : exportSetlistListToPdf(items, pdfTitle, pdf, fonts);
     doc.save(`${pdfTitle}.pdf`);
   };
 

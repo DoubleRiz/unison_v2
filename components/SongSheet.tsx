@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Song, NotationMode } from '../types';
-import { transpose, convertToDegree, getSectionType, transposeContent } from '../utils/musicLogic';
+import { transpose, convertToDegree, getSectionType } from '../utils/musicLogic';
 import { Heart, Trash2, AlertTriangle, Pencil, ZoomIn, ZoomOut, Play, Pause, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import ChordVisualizer from './ChordVisualizer';
 import { GUITAR_DATA } from '../constants/chordShapes';
@@ -10,6 +10,7 @@ import CommentsSection from './CommentsSection';
 import ChordTooltip from './ChordTooltip';
 import { jsPDF } from 'jspdf';
 import { registerPdfFonts, normalizePdfText, fallbackPdfText, PDF_FONT } from '../utils/pdfFonts';
+import { PdfContext, renderSongBodyToPdf } from '../utils/pdfRender';
 
 interface SongSheetProps {
   song: Song;
@@ -303,7 +304,6 @@ const SongSheet: React.FC<SongSheetProps> = ({
 
     const margin = 15;
     const lineHeight = 6;
-    const pageBottom = 280;
     doc.setTextColor(22, 24, 29);
     doc.setFontSize(22);
     doc.setFont(font, 'bold');
@@ -317,40 +317,14 @@ const SongSheet: React.FC<SongSheetProps> = ({
     doc.setTextColor(90, 95, 105);
     doc.text(clean(hasFont ? meta : meta.replace(' · ', ' - ')), margin, cursorY);
     cursorY += 12;
-    doc.setFontSize(11);
-
-    const lines = transposeContent(song.content, transposeSemitones).split(/\r?\n/);
-    lines.forEach(line => {
-      if (cursorY > pageBottom) { doc.addPage(); cursorY = 20; }
-
-      const sectionName = getSectionType(line);
-      if (sectionName) {
-        cursorY += 4;
-        doc.setFont(font, 'bold');
-        doc.setTextColor(22, 24, 29);
-        doc.text(clean(sectionName.toUpperCase()), margin, cursorY);
-        cursorY += lineHeight;
-        return;
-      }
-
-      // Render line with highlighted chords
-      const parts = line.split(/\[(.*?)\]/g);
-      let currentX = margin;
-
-      parts.forEach((part, i) => {
-        const isChord = i % 2 === 1;
-        doc.setFont(font, isChord ? 'bold' : 'normal');
-        if (isChord) doc.setTextColor(36, 64, 214); // Unison blue
-        else doc.setTextColor(22, 24, 29);
-
-        const textToRender = clean(part);
-        if (textToRender) {
-          doc.text(textToRender, currentX, cursorY);
-          currentX += doc.getTextWidth(textToRender);
-        }
-      });
-
-      cursorY += lineHeight;
+    const ctx: PdfContext = { doc, margin, contentWidth: 210 - margin * 2, pageHeight: 297, cursorY };
+    renderSongBodyToPdf(ctx, song.content, transposeSemitones, {
+      font,
+      clean,
+      lineHeight,
+      textRgb: [22, 24, 29],
+      chordRgb: [36, 64, 214], // Unison blue
+      sectionRgb: [22, 24, 29],
     });
     const fileName = song.title.normalize('NFC').replace(/[\\/:*?"<>|]+/g, '-').trim() || 'chanson';
     doc.save(`${fileName}.pdf`);

@@ -7,13 +7,15 @@ interface SongEditorProps {
   initialSong?: Song | null;
   groups: Group[];
   existingTags: string[]; // List of unique tags from all songs
+  /** false quand un membre de groupe modifie la chanson d'un autre : visibilité et groupe verrouillés. */
+  canManageVisibility?: boolean;
   onSave: (song: Song) => void;
   onCancel: () => void;
 }
 
 const KEYS = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'];
 
-const SongEditor: React.FC<SongEditorProps> = ({ initialSong, groups, existingTags, onSave, onCancel }) => {
+const SongEditor: React.FC<SongEditorProps> = ({ initialSong, groups, existingTags, canManageVisibility = true, onSave, onCancel }) => {
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
   const [bpm, setBpm] = useState<string>('');
@@ -279,6 +281,12 @@ With sections clearly marked`);
         </div>
       </div>
 
+      {!canManageVisibility ? (
+        <div className="p-3 mb-6 bg-slate-100/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg flex items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
+          <Lock size={16} className="shrink-0" />
+          Seul le propriétaire de la chanson peut changer sa visibilité et son groupe.
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {/* Visibility Toggle */}
         <div className="p-3 bg-slate-100/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg flex items-center justify-between cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors" onClick={() => setIsPublic(!isPublic)}>
@@ -324,6 +332,7 @@ With sections clearly marked`);
           </div>
         )}
       </div>
+      )}
 
       <div className="mb-6">
         <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">

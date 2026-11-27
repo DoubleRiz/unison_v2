@@ -66,14 +66,10 @@ export const useAppData = (session: any, currentView: string, currentSongId: str
 
   const fetchUserProfile = useCallback(async () => {
     if (!session) return;
-    const { data } = await supabase
-      .from('users')
-      .select('is_admin')
-      .eq('id', session.user.id)
-      .single();
-    
-    if (data) {
-      setIsAdmin(!!data.is_admin);
+    // La colonne users.is_admin n'est pas lisible directement (RLS) : on passe par la fonction.
+    const { data, error } = await supabase.rpc('is_admin');
+    if (!error) {
+      setIsAdmin(data === true);
     }
   }, [session]);
 

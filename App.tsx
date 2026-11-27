@@ -179,7 +179,8 @@ const App: React.FC = () => {
   const handleSaveSong = async (songData: Song, onSuccess?: () => void) => {
     if (!session) return;
     try {
-      const isNew = !songs.find(s => s.id === songData.id);
+      const existing = songs.find(s => s.id === songData.id);
+      const isNew = !existing;
       const dbSong: any = {
         title: songData.title,
         artist: songData.artist,
@@ -203,6 +204,11 @@ const App: React.FC = () => {
         setSongs([newSong, ...songs]);
         setCurrentSongId(data.id);
       } else {
+        // Seul le propriétaire (ou un admin) peut changer la visibilité et le groupe.
+        if (existing.user_id !== session.user.id && !isAdmin) {
+          delete dbSong.is_public;
+          delete dbSong.shared_with_group_id;
+        }
         const { error } = await supabase.from('songs').update(dbSong).eq('id', songData.id);
         if (error) throw error;
         setSongs(songs.map(s => s.id === songData.id ? { ...songData, user_id: s.user_id || session.user.id, is_favorite: s.is_favorite } : s));
@@ -366,8 +372,9 @@ const App: React.FC = () => {
       return session ? (
         <SongEditor 
           key={currentSongId || 'new'}
-          initialSong={currentSongId ? currentSong : null} 
+          initialSong={currentSongId ? currentSong : null}
           groups={groups}
+          canManageVisibility={!currentSongId || !currentSong || currentSong.user_id === session.user.id || isAdmin}
           existingTags={allExistingTags}
           onSave={handleSaveSong} 
           onCancel={() => {

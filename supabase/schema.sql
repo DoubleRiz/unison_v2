@@ -1,7 +1,8 @@
 -- =============================================================================
 -- Unison — schéma complet (baseline) pour un nouveau projet Supabase
 -- Reconstruit à partir du code de l'app et des données de l'ancien projet.
--- Intègre les migrations de supabase/migrations/ (text_notes, layout_document, mode, icon).
+-- Intègre les migrations de supabase/migrations/ (text_notes, layout_document, mode, icon,
+-- harden_rls).
 --
 -- À exécuter UNE fois dans : Dashboard Supabase > SQL Editor > New query.
 -- =============================================================================
@@ -188,6 +189,9 @@ create policy users_update on public.users for update
 -- is_admin non modifiable par l'utilisateur lui-même
 revoke update on public.users from anon, authenticated;
 grant update (username, avatar_url, updated_at) on public.users to authenticated;
+-- is_admin non lisible directement (l'app passe par public.is_admin())
+revoke select on public.users from anon, authenticated;
+grant select (id, username, avatar_url, updated_at) on public.users to anon, authenticated;
 
 -- songs
 create policy songs_select on public.songs for select using (
@@ -197,7 +201,10 @@ create policy songs_select on public.songs for select using (
   or public.is_admin()
 );
 create policy songs_insert on public.songs for insert to authenticated
-  with check (user_id = auth.uid());
+  with check (
+    user_id = auth.uid()
+    and (shared_with_group_id is null or public.is_group_member(shared_with_group_id))
+  );
 create policy songs_update on public.songs for update to authenticated using (
   user_id = auth.uid()
   or (shared_with_group_id is not null and public.is_group_member(shared_with_group_id))
@@ -211,9 +218,14 @@ create policy favorites_all on public.favorites for all to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- comments
-create policy comments_select on public.comments for select using (true);
+-- visibles / ajoutables seulement si la chanson est visible (RLS de songs appliquée)
+create policy comments_select on public.comments for select
+  using (exists (select 1 from public.songs s where s.id = song_id));
 create policy comments_insert on public.comments for insert to authenticated
-  with check (user_id = auth.uid());
+  with check (
+    user_id = auth.uid()
+    and exists (select 1 from public.songs s where s.id = song_id)
+  );
 create policy comments_delete on public.comments for delete to authenticated
   using (user_id = auth.uid() or public.is_admin());
 
@@ -230,10 +242,16 @@ create policy groups_delete on public.groups for delete to authenticated
 -- group_members
 create policy gm_select on public.group_members for select to authenticated
   using (user_id = auth.uid() or public.is_group_member(group_id) or public.is_group_admin(group_id));
+-- un admin ne crée que des invitations en attente ; le créateur s'ajoute lui-même
 create policy gm_insert on public.group_members for insert to authenticated
-  with check (public.is_group_admin(group_id));
+  with check (
+    (public.is_group_admin(group_id) and status = 'pending' and role = 'member')
+    or (user_id = auth.uid()
+        and exists (select 1 from public.groups g where g.id = group_id and g.created_by = auth.uid()))
+  );
+-- seule la personne invitée accepte son invitation
 create policy gm_update on public.group_members for update to authenticated
-  using (user_id = auth.uid() or public.is_group_admin(group_id));
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy gm_delete on public.group_members for delete to authenticated
   using (user_id = auth.uid() or public.is_group_admin(group_id));
 -- seul le statut est modifiable (accepter une invitation), pas le rôle
@@ -253,6 +271,75 @@ create policy setlists_delete on public.setlists for delete to authenticated
 -- setlist_songs : mêmes droits que la setlist parente
 create policy setlist_songs_all on public.setlist_songs for all to authenticated
   using (public.can_access_setlist(setlist_id)) with check (public.can_access_setlist(setlist_id));
+
+-- -----------------------------------------------------------------------------
+-- Garde-fous sur les modifications (ignorés quand auth.uid() est nul : SQL
+-- Editor, service role, relink_legacy_user)
+-- -----------------------------------------------------------------------------
+-- Chansons : un membre de groupe modifie le contenu, mais ne peut ni s'approprier
+-- la chanson, ni changer sa visibilité, ni la déplacer vers un autre groupe.
+create or replace function public.guard_song_update() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null or public.is_admin() then
+    return new;
+  end if;
+
+  if new.user_id is distinct from old.user_id then
+    raise exception 'Impossible de changer le propriétaire d''une chanson.'
+      using errcode = '42501';
+  end if;
+
+  if (new.is_public is distinct from old.is_public
+      or new.shared_with_group_id is distinct from old.shared_with_group_id)
+     and old.user_id <> auth.uid() then
+    raise exception 'Seul le propriétaire peut changer la visibilité ou le groupe d''une chanson.'
+      using errcode = '42501';
+  end if;
+
+  if new.shared_with_group_id is distinct from old.shared_with_group_id
+     and new.shared_with_group_id is not null
+     and not public.is_group_member(new.shared_with_group_id) then
+    raise exception 'Vous n''êtes pas membre de ce groupe.'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end $$;
+
+create trigger songs_guard_update before update on public.songs
+  for each row execute function public.guard_song_update();
+
+-- Setlists : pas de changement de propriétaire ; seul le propriétaire change le
+-- groupe, et seulement vers un groupe dont il est membre.
+create or replace function public.guard_setlist_update() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then
+    return new;
+  end if;
+
+  if new.user_id is distinct from old.user_id then
+    raise exception 'Impossible de changer le propriétaire d''une setlist.'
+      using errcode = '42501';
+  end if;
+
+  if new.group_id is distinct from old.group_id then
+    if old.user_id <> auth.uid() then
+      raise exception 'Seul le propriétaire peut changer le groupe d''une setlist.'
+        using errcode = '42501';
+    end if;
+    if new.group_id is not null and not public.is_group_member(new.group_id) then
+      raise exception 'Vous n''êtes pas membre de ce groupe.'
+        using errcode = '42501';
+    end if;
+  end if;
+
+  return new;
+end $$;
+
+create trigger setlists_guard_update before update on public.setlists
+  for each row execute function public.guard_setlist_update();
 
 -- -----------------------------------------------------------------------------
 -- Relier un nouveau compte à un profil hérité de l'ancienne base.

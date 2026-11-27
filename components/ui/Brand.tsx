@@ -62,7 +62,7 @@ export const KeyBadge: React.FC<{ children: React.ReactNode; size?: 'sm' | 'md';
 );
 
 /** Small uppercase label used above sections. */
-export const Eyebrow: React.FC<{ children: React.ReactNode; className?: string; as?: 'p' | 'h2' | 'h3' | 'span' }> = ({
+export const Eyebrow: React.FC<{ children: React.ReactNode; className?: string; as?: 'p' | 'h2' | 'h3' | 'h4' | 'span' }> = ({
   children,
   className = '',
   as = 'p'

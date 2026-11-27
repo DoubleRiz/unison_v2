@@ -26,7 +26,7 @@ Vues disponibles : `landing` (page marketing si déconnecté, `HomeDashboard` si
 App.tsx                    # Racine : gestion session, navigation, état global
 types.ts                   # Types partagés : Song, Setlist, Group, GroupMember, Comment, NotationMode
 hooks/useAppData.ts        # Fetch songs, groups, invites en fonction de la session
-lib/supabaseClient.ts      # Client Supabase (URL + anon key hardcodés)
+lib/supabaseClient.ts      # Client Supabase (VITE_SUPABASE_URL + VITE_SUPABASE_PUBLISHABLE_KEY depuis .env)
 utils/musicLogic.ts        # Logique musicale : transpose, degrés, détection sections
 constants/chordShapes.ts   # Voicings d'accords pour le dictionnaire
 components/
@@ -37,7 +37,7 @@ components/
   GroupManager.tsx         # Gestion des groupes/bands et invitations
   LandingPage.tsx          # Page d'accueil non-connectée (plein écran, sans sidebar)
   HomeDashboard.tsx        # Accueil connecté (dernières chansons, setlists, favoris)
-  ui/                      # Brand.tsx (logo, badges), styles.ts (classes partagées)
+  ui/                      # Brand.tsx (logo, badges), styles.ts (classes partagées), Segmented.tsx, Modal.tsx
   tools/
     ChordDictionary.tsx    # Dictionnaire visuel d'accords
     ChordProgressions.tsx  # Outil progressions d'accords
@@ -52,7 +52,7 @@ Maquettes de référence : canvas « Unison, maquettes des pages » (claude.ai a
   - accent : `cyan-600` #2440D6 (clair) / `cyan-400` #93A5FF (sombre), teinte `cyan-100` / `cyan-900`
   - signal (défilement, scène) : `red-500` #D3402A / `red-400` #FF6B54 ; ambre `amber-400` #F5B83D
 - **Rayons** : `rounded`=3px, `rounded-md`/`lg`=4px, `rounded-xl`=6px. Pas de dégradés, pas de flou décoratif.
-- **Composants partagés** : `components/ui/Brand.tsx` (Logo, KeyBadge, DiceIcon, Initials), `components/ui/styles.ts` (classes input/bouton/alerte)
+- **Composants partagés** : `components/ui/Brand.tsx` (Logo, KeyBadge, DiceIcon, Initials, Eyebrow), `components/ui/styles.ts` (classes input/bouton/alerte), `components/ui/Segmented.tsx` (contrôle segmenté), `components/ui/Modal.tsx` (dialogue)
 - Libellés d'interface en français.
 
 ### Responsive

@@ -4,29 +4,23 @@ import { Song, Setlist, SetlistTextNote, NotationMode, Group, SongItem, TextItem
 import { supabase } from '../lib/supabaseClient';
 import {
   Plus,
+  Minus,
   Trash2,
-  FileDown,
-  GripVertical,
   Search,
   ChevronLeft,
-  Calendar,
-  Play,
-  Minus,
-  Edit2,
-  X,
   ChevronRight,
-  Users,
-  User,
-  AlertTriangle,
-  Hash,
-  Type,
-  AlignLeft,
-  Check,
-  Heart,
   ChevronUp,
   ChevronDown,
+  Play,
+  Edit2,
+  X,
+  Hash,
+  Type,
+  Heart,
   Copy,
-  MoreVertical
+  MoreVertical,
+  GripVertical,
+  FileDown
 } from 'lucide-react';
 import SongSheet from './SongSheet';
 import SongEditor from './SongEditor';
@@ -35,6 +29,13 @@ import { TEXT_COLORS, TEXT_SIZES } from '../constants/textNoteStyles';
 import { buildInitialDocument } from '../utils/setlistDocument';
 import { exportLayoutDocumentToPdf } from '../utils/setlistDocumentPdf';
 import { exportSetlistListToPdf } from '../utils/setlistListPdf';
+import { transpose as transposeChord } from '../utils/musicLogic';
+import { KeyBadge } from './ui/Brand';
+import { Segmented } from './ui/Segmented';
+import { Modal } from './ui/Modal';
+import { inputCls, labelCls, secondaryBtn } from './ui/styles';
+import { DEFAULT_SETLIST_ICON, getSetlistIcon } from '../constants/setlistIcons';
+import { SetlistIconPicker } from './SetlistIconPicker';
 
 const FAVORITES_ID = 'virtual_favorites';
 
@@ -46,55 +47,45 @@ interface SetlistEditorProps {
   onSaveSong?: (song: Song, onSuccess?: () => void) => Promise<void>;
 }
 
+type SetlistWithCount = Setlist & { song_count?: number };
+
 const generateId = () => `txt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-// ── SetlistCard ───────────────────────────────────────────────────────────
-interface SetlistCardProps {
-  list: Setlist;
-  onDelete: (id: string, e: React.MouseEvent) => void;
-  onDuplicate: (id: string, e: React.MouseEvent) => void;
-  onSelect: (l: Setlist) => void;
-}
+const fmtShort = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+const fmtLong = (iso: string) => new Date(iso).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
+const morceaux = (n: number) => `${n} morceau${n > 1 ? 'x' : ''}`;
 
-const SetlistCard: React.FC<SetlistCardProps> = ({ list, onDelete, onDuplicate, onSelect }) => (
-  <div onClick={() => onSelect(list)}
-    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 cursor-pointer hover:border-cyan-500/50 transition-all group relative">
-    <div className="flex justify-between items-start">
-      <div>
-        <h3 className="text-xl font-bold text-ink dark:text-white mb-1 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">{list.title}</h3>
-        <div className="text-xs text-slate-500 flex items-center gap-2">
-          <Calendar size={12} />
-          {new Date(list.created_at).toLocaleDateString()}
-        </div>
-      </div>
-      <div className="flex items-center">
-        <button onClick={(e) => onDuplicate(list.id, e)} className="text-slate-600 hover:text-cyan-600 dark:hover:text-cyan-400 p-2">
-          <Copy size={18} />
-        </button>
-        <button onClick={(e) => onDelete(list.id, e)} className="text-slate-600 hover:text-red-600 dark:hover:text-red-400 p-2">
-          <Trash2 size={18} />
-        </button>
-      </div>
-    </div>
-  </div>
-);
+const btnSm = 'inline-flex items-center justify-center gap-1.5 h-[38px] px-3 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm font-semibold hover:border-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+const iconBtn = 'inline-flex items-center justify-center w-8 h-8 rounded text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-ink dark:hover:text-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors';
+const primarySm = 'inline-flex items-center justify-center gap-2 h-11 px-4 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white font-semibold transition-colors disabled:opacity-50';
+const dangerBtn = 'inline-flex items-center justify-center gap-2 h-11 px-4 rounded-md bg-red-500 hover:bg-red-600 text-white font-semibold transition-colors';
 
 // ──────────────────────────────────────────────────────────────────────────
 const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, onBack, onSaveSong }) => {
-  const [setlists, setSetlists] = useState<Setlist[]>([]);
+  const [setlists, setSetlists] = useState<SetlistWithCount[]>([]);
   const [currentSetlist, setCurrentSetlist] = useState<Setlist | null>(null);
   const [setlistItems, setSetlistItems] = useState<SetlistItem[]>([]);
   const [setlistItemsLoadedFor, setSetlistItemsLoadedFor] = useState<string | null>(null);
 
+  // Index view
+  const [indexFilter, setIndexFilter] = useState<'all' | 'personal' | 'group'>('all');
+  const [indexQuery, setIndexQuery] = useState('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
   const [newSetlistMode, setNewSetlistMode] = useState<'list' | 'document'>('list');
+  const [newIcon, setNewIcon] = useState<string>(DEFAULT_SETLIST_ICON);
+  const [iconEditId, setIconEditId] = useState<string | null>(null);
+  const [iconError, setIconError] = useState<string | null>(null);
+
+  // Detail view
   const [searchQuery, setSearchQuery] = useState('');
+  const [librarySource, setLibrarySource] = useState<'all' | 'favorites' | 'group'>('all');
   const [loading, setLoading] = useState(true);
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
   const [editTitleValue, setEditTitleValue] = useState('');
 
-  // Scroll to library helper
   const libraryRef = useRef<HTMLDivElement>(null);
   const actionsMenuRef = useRef<HTMLDivElement>(null);
   const jumpToLibrary = () => {
@@ -126,7 +117,7 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
       setEditingTextId(null);
       return;
     }
-    
+
     if (editingTextId === 'new') {
       const newNote: TextItem = {
         type: 'text',
@@ -159,29 +150,49 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
   const [performanceMode, setPerformanceMode] = useState(false);
   const [performanceIndex, setPerformanceIndex] = useState(0);
   const [performanceEditingSong, setPerformanceEditingSong] = useState<Song | null>(null);
+  const [pendingPerformance, setPendingPerformance] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfTitle, setPdfTitle] = useState('');
 
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
 
+  const isVirtual = currentSetlist?.id === FAVORITES_ID;
+
   useEffect(() => { fetchSetlists(); }, [user]);
 
   useEffect(() => {
     if (currentSetlist) {
       setEditTitleValue(currentSetlist.title);
-      setPdfTitle(`${currentSetlist.title} - ${new Date().toLocaleDateString()}`);
+      setPdfTitle(`${currentSetlist.title} - ${new Date().toLocaleDateString('fr-FR')}`);
     }
   }, [currentSetlist]);
+
+  // Launched from the index's "Défilement" button: start once the items are loaded.
+  useEffect(() => {
+    if (pendingPerformance && currentSetlist && setlistItemsLoadedFor === currentSetlist.id) {
+      setPendingPerformance(false);
+      if (setlistItems.length > 0) { setPerformanceIndex(0); setPerformanceMode(true); }
+    }
+  }, [pendingPerformance, setlistItemsLoadedFor, currentSetlist, setlistItems.length]);
 
   // ── Data fetching ────────────────────────────────────────────────────────
   const fetchSetlists = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('setlists')
-      .select('*')
+      .select('*, setlist_songs(count)')
       .order('created_at', { ascending: false });
-    if (!error && data) setSetlists(data);
+    if (error) {
+      // Fallback if the embedded count is not available on this schema.
+      ({ data, error } = await supabase.from('setlists').select('*').order('created_at', { ascending: false }));
+    }
+    if (!error && data) {
+      setSetlists(data.map((s: any) => {
+        const { setlist_songs, ...rest } = s;
+        return { ...rest, song_count: setlist_songs?.[0]?.count };
+      }));
+    }
     setLoading(false);
   };
 
@@ -238,6 +249,13 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
     setSetlistItemsLoadedFor(setlistId);
   };
 
+  // Keep the song counts shown on the index in sync with edits made in the detail view.
+  useEffect(() => {
+    if (!currentSetlist || isVirtual || setlistItemsLoadedFor !== currentSetlist.id) return;
+    const count = setlistItems.filter(i => i.type === 'song').length;
+    setSetlists(prev => prev.map(s => s.id === currentSetlist.id && s.song_count !== count ? { ...s, song_count: count } : s));
+  }, [setlistItems, setlistItemsLoadedFor, currentSetlist?.id]);
+
   // ── Text notes persistence ───────────────────────────────────────────────
   const persistTextNotes = async (items: SetlistItem[]) => {
     if (!currentSetlist) return;
@@ -253,33 +271,60 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
   };
 
   // ── Setlist CRUD ─────────────────────────────────────────────────────────
+  const openCreateModal = () => {
+    setNewTitle('');
+    setSelectedGroupId('');
+    setNewSetlistMode('list');
+    setNewIcon(DEFAULT_SETLIST_ICON);
+    setShowCreateModal(true);
+  };
+
   const handleCreateSetlist = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
-    const payload: any = { title: newTitle, user_id: user.id, mode: newSetlistMode };
+    const payload: any = { title: newTitle.trim(), user_id: user.id, mode: newSetlistMode, icon: newIcon };
     if (selectedGroupId) payload.group_id = selectedGroupId;
-    const { data, error } = await supabase.from('setlists').insert([payload]).select().single();
+    let { data, error } = await supabase.from('setlists').insert([payload]).select().single();
+    if (error && /icon/.test(error.message)) {
+      // Colonne `icon` pas encore migrée : on crée la setlist sans icône.
+      const { icon: _icon, ...rest } = payload;
+      ({ data, error } = await supabase.from('setlists').insert([rest]).select().single());
+    }
     if (!error && data) {
-      setSetlists([data, ...setlists]);
-      setNewTitle('');
-      setSelectedGroupId('');
-      setNewSetlistMode('list');
+      setSetlists([{ ...data, song_count: 0 }, ...setlists]);
+      setShowCreateModal(false);
       handleSelectSetlist(data);
     }
   };
 
-  const handleUpdateSetlistTitle = async () => {
+  const handleUpdateSetlistIcon = async (id: string, icon: string) => {
+    setIconError(null);
+    const { error } = await supabase.from('setlists').update({ icon }).eq('id', id);
+    if (error) {
+      setIconError(/icon/.test(error.message)
+        ? 'La colonne « icon » n\'existe pas encore en base : appliquez la migration.'
+        : 'Impossible d\'enregistrer l\'icône.');
+      return;
+    }
+    setSetlists(prev => prev.map(s => s.id === id ? { ...s, icon } : s));
+    setCurrentSetlist(prev => prev && prev.id === id ? { ...prev, icon } : prev);
+    setIconEditId(null);
+  };
+
+  const handleUpdateSetlistTitle = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!currentSetlist || currentSetlist.id === FAVORITES_ID || !editTitleValue.trim()) return;
 
+    const title = editTitleValue.trim();
     const { error } = await supabase
       .from('setlists')
-      .update({ title: editTitleValue })
+      .update({ title })
       .eq('id', currentSetlist.id);
 
     if (!error) {
-      setCurrentSetlist({ ...currentSetlist, title: editTitleValue });
-      setSetlists(setlists.map(s => s.id === currentSetlist.id ? { ...s, title: editTitleValue } : s));
-      setIsEditingTitle(false);
+      setCurrentSetlist({ ...currentSetlist, title });
+      setSetlists(setlists.map(s => s.id === currentSetlist.id ? { ...s, title } : s));
+      setShowRenameModal(false);
     }
   };
 
@@ -305,6 +350,7 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
         title: `${original.title} (copie)`,
         user_id: user.id,
         group_id: original.group_id ?? null,
+        ...(original.icon ? { icon: original.icon } : {}),
         mode: original.mode,
         text_notes: original.mode === 'list' ? (original.text_notes || []) : [],
         layout_document: null, // patched below once setlist_songs are duplicated, if mode === 'document'
@@ -352,7 +398,7 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
         newSetlist.layout_document = remapped;
       }
 
-      setSetlists([newSetlist, ...setlists]);
+      setSetlists([{ ...newSetlist, song_count: originalSongs?.length ?? 0 }, ...setlists]);
       handleSelectSetlist(newSetlist);
     }
 
@@ -370,7 +416,6 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
   const executeDeleteSetlist = async () => {
     if (!setlistToDelete) return;
 
-    // Correctly use the setSetlistToDelete setter instead of calling the state value itself.
     await supabase.from('setlists').delete().eq('id', setlistToDelete);
     setSetlists(setlists.filter(s => s.id !== setlistToDelete));
     if (currentSetlist?.id === setlistToDelete) setCurrentSetlist(null);
@@ -378,11 +423,14 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
     setSetlistToDelete(null);
   };
 
-  const handleSelectSetlist = (setlist: Setlist) => {
+  const handleSelectSetlist = (setlist: Setlist, play = false) => {
     setCurrentSetlist(setlist);
     setSetlistItemsLoadedFor(null);
+    setSearchQuery('');
+    setLibrarySource('all');
     fetchSetlistItems(setlist.id);
     setPerformanceMode(false);
+    setPendingPerformance(play);
   };
 
   useEffect(() => {
@@ -400,10 +448,7 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
   const addSongToSetlist = async (song: Song) => {
     if (!currentSetlist || currentSetlist.id === FAVORITES_ID) return;
 
-    if (setlistItems.some(item => item.type === 'song' && item.song.id === song.id)) {
-      alert("Déjà dans la setlist");
-      return;
-    }
+    if (setlistItems.some(item => item.type === 'song' && item.song.id === song.id)) return;
     const { data, error } = await supabase.from('setlist_songs')
       .insert({ setlist_id: currentSetlist.id, song_id: song.id, position: setlistItems.length, transpose: 0 })
       .select().single();
@@ -440,14 +485,14 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
     }
   };
 
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, position: number) => {
-    if (currentSetlist?.id === FAVORITES_ID) return;
+  const handleDragStart = (e: React.DragEvent<HTMLLIElement>, position: number) => {
+    if (isVirtual) return;
     dragItem.current = position;
     e.currentTarget.classList.add('opacity-50');
   };
 
-  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>, position: number) => {
-    if (currentSetlist?.id === FAVORITES_ID) return;
+  const handleDragEnter = (_e: React.DragEvent<HTMLLIElement>, position: number) => {
+    if (isVirtual) return;
     dragOverItem.current = position;
   };
 
@@ -495,8 +540,8 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
     setCurrentSetlist((prev) => (prev ? { ...prev, layout_document: doc } : prev));
   };
 
-  const handleDragEnd = async (e: React.DragEvent<HTMLDivElement>) => {
-    if (currentSetlist?.id === FAVORITES_ID) return;
+  const handleDragEnd = async (e: React.DragEvent<HTMLLIElement>) => {
+    if (isVirtual) return;
     e.currentTarget.classList.remove('opacity-50');
     if (!currentSetlist || dragItem.current === null || dragOverItem.current === null) return;
     if (dragItem.current === dragOverItem.current) return;
@@ -537,674 +582,709 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
     doc.save(`${pdfTitle}.pdf`);
   };
 
-const favoriteSetlist: Setlist = {
-  id: FAVORITES_ID,
-  user_id: user.id,
-  title: 'My Favorites',
-  created_at: new Date().toISOString(),
-  mode: 'list'
-};
+  const favoriteSetlist: Setlist = {
+    id: FAVORITES_ID,
+    user_id: user.id,
+    title: 'Mes favoris',
+    created_at: new Date().toISOString(),
+    mode: 'list'
+  };
+  const favoriteCount = allSongs.filter(s => s.is_favorite).length;
+  const groupName = (id?: string | null) => (id ? groups.find(g => g.id === id)?.name : undefined);
 
-if (performanceMode && currentSetlist) {
-  const currentItem = setlistItems[performanceIndex];
+  // ── Shared dialogs ────────────────────────────────────────────────────────
+  const iconEditSetlist = iconEditId ? setlists.find(s => s.id === iconEditId) : undefined;
+  const dialogs = (
+    <>
+      {iconEditSetlist && (
+        <Modal title="Changer l'icône" onClose={() => setIconEditId(null)} width="md">
+          <SetlistIconPicker
+            value={iconEditSetlist.icon || DEFAULT_SETLIST_ICON}
+            onChange={(name) => handleUpdateSetlistIcon(iconEditSetlist.id, name)}
+          />
+          {iconError && <p role="alert" className="m-0 px-3 py-2.5 rounded-md bg-red-50 text-red-700 dark:bg-red-900 dark:text-red-300 text-sm">{iconError}</p>}
+        </Modal>
+      )}
+      {showDeleteModal && (
+        <Modal
+          title="Supprimer la setlist ?"
+          onClose={() => setShowDeleteModal(false)}
+          footer={<>
+            <button type="button" onClick={() => setShowDeleteModal(false)} className={secondaryBtn + ' h-11'}>Annuler</button>
+            <button type="button" onClick={executeDeleteSetlist} className={dangerBtn}>Supprimer</button>
+          </>}
+        >
+          <p className="m-0 text-slate-600 dark:text-slate-400">Les chansons restent dans la bibliothèque. Cette action est définitive.</p>
+        </Modal>
+      )}
 
-  if (performanceEditingSong && onSaveSong) {
-    const existingTags = [...new Set(allSongs.flatMap(s => s.tags || []))];
+      {showDuplicateModal && (
+        <Modal
+          title="Dupliquer la setlist ?"
+          onClose={() => setShowDuplicateModal(false)}
+          footer={<>
+            <button type="button" onClick={() => setShowDuplicateModal(false)} className={secondaryBtn + ' h-11'}>Annuler</button>
+            <button type="button" onClick={executeDuplicateSetlist} className={primarySm}>Dupliquer</button>
+          </>}
+        >
+          <p className="m-0 text-slate-600 dark:text-slate-400">Une copie sera créée avec tous ses morceaux, leurs tons et ses notes.</p>
+        </Modal>
+      )}
+    </>
+  );
+
+  // ── Performance mode ──────────────────────────────────────────────────────
+  if (performanceMode && currentSetlist) {
+    const currentItem = setlistItems[performanceIndex];
+
+    if (performanceEditingSong && onSaveSong) {
+      const existingTags = [...new Set(allSongs.flatMap(s => s.tags || []))];
+      return (
+        <div className="fixed inset-0 bg-slate-100 dark:bg-slate-950 z-50 flex flex-col">
+          <div className="h-16 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center px-6 shrink-0">
+            <button onClick={() => setPerformanceEditingSong(null)} className="text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white shrink-0 flex items-center gap-2">
+              <ChevronLeft size={24} />
+              <span className="text-sm">Retour au mode scène</span>
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <SongEditor
+              initialSong={performanceEditingSong}
+              groups={groups}
+              existingTags={existingTags}
+              onSave={(song) => {
+                onSaveSong(song, () => {
+                  setSetlistItems(items =>
+                    items.map(item =>
+                      item.type === 'song' && item.song.id === song.id
+                        ? { ...item, song }
+                        : item
+                    )
+                  );
+                  setPerformanceEditingSong(null);
+                });
+              }}
+              onCancel={() => setPerformanceEditingSong(null)}
+            />
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="fixed inset-0 bg-slate-100 dark:bg-slate-950 z-50 flex flex-col">
-        <div className="h-16 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center px-6 shrink-0">
-          <button onClick={() => setPerformanceEditingSong(null)} className="text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white shrink-0 flex items-center gap-2">
-            <ChevronLeft size={24} />
-            <span className="text-sm">Retour au mode scène</span>
-          </button>
+        <div className="h-16 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            <button onClick={() => setPerformanceMode(false)} aria-label="Quitter le mode scène" className="text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white shrink-0"><X size={24} /></button>
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-bold text-ink dark:text-white leading-tight truncate">{currentSetlist.title}</h2>
+              <div className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-400">{performanceIndex + 1} / {setlistItems.length}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            {currentItem.type === 'song' && onSaveSong && (
+              <button
+                onClick={() => setPerformanceEditingSong(currentItem.song)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-ink dark:hover:text-white transition-colors"
+              >
+                <Edit2 size={18} />
+                <span className="hidden sm:inline">Modifier</span>
+              </button>
+            )}
+            <button
+              onClick={() => setNotationMode(m => m === NotationMode.LETTERS ? NotationMode.DEGREES : NotationMode.LETTERS)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-ink dark:hover:text-white transition-colors"
+            >
+              {notationMode === NotationMode.LETTERS ? <Hash size={18} /> : <Type size={18} />}
+              <span className="hidden sm:inline">{notationMode === NotationMode.LETTERS ? 'Lettres' : 'Degrés'}</span>
+            </button>
+            <div className="h-8 w-px bg-slate-100 dark:bg-slate-800 mx-2" />
+            <button disabled={performanceIndex === 0} onClick={() => setPerformanceIndex(p => p - 1)} aria-label="Morceau précédent"
+              className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-ink dark:text-white disabled:opacity-30 hover:bg-cyan-600 transition-colors">
+              <ChevronLeft size={24} />
+            </button>
+            <div className="text-xl font-mono text-cyan-600 dark:text-cyan-400 font-bold w-8 text-center">{performanceIndex + 1}</div>
+            <button disabled={performanceIndex === setlistItems.length - 1} onClick={() => setPerformanceIndex(p => p + 1)} aria-label="Morceau suivant"
+              className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-ink dark:text-white disabled:opacity-30 hover:bg-cyan-600 transition-colors">
+              <ChevronRight size={24} />
+            </button>
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto">
-          <SongEditor
-            initialSong={performanceEditingSong}
-            groups={groups}
-            existingTags={existingTags}
-            onSave={(song) => {
-              onSaveSong(song, () => {
-                setSetlistItems(items =>
-                  items.map(item =>
-                    item.type === 'song' && item.song.id === song.id
-                      ? { ...item, song }
-                      : item
-                  )
-                );
-                setPerformanceEditingSong(null);
-              });
-            }}
-            onCancel={() => setPerformanceEditingSong(null)}
-          />
+        <div className="flex-1 overflow-y-auto p-6 scroll-smooth bg-slate-100 dark:bg-slate-950">
+          <div className="max-w-4xl mx-auto">
+            {currentItem.type === 'song' ? (
+              <SongSheet
+                song={currentItem.song}
+                transposeSemitones={currentItem.transpose}
+                notationMode={notationMode}
+              />
+            ) : (
+              <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8 min-h-[400px] flex items-center justify-center text-center">
+                <div className="max-w-2xl">
+                  <div className={`text-2xl font-bold mb-4 ${TEXT_SIZES[currentItem.size]?.uiClass || ''}`} style={{ color: TEXT_COLORS[currentItem.color]?.hex || '#fff' }}>
+                    {currentItem.content}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="fixed inset-0 bg-slate-100 dark:bg-slate-950 z-50 flex flex-col">
-      <div className="h-16 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 shrink-0">
-        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-          <button onClick={() => setPerformanceMode(false)} className="text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white shrink-0"><X size={24} /></button>
-          <div className="min-w-0">
-            <h2 className="text-base sm:text-lg font-bold text-ink dark:text-white leading-tight truncate">{currentSetlist.title}</h2>
-            <div className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-400">{performanceIndex + 1} / {setlistItems.length}</div>
+  // ── Index: toutes les setlists ────────────────────────────────────────────
+  if (!currentSetlist) {
+    const q = indexQuery.trim().toLowerCase();
+    const visible = setlists.filter(s => {
+      if (indexFilter === 'personal' && s.group_id) return false;
+      if (indexFilter === 'group' && !s.group_id) return false;
+      if (!q) return true;
+      return s.title.toLowerCase().includes(q) || (groupName(s.group_id) || '').toLowerCase().includes(q);
+    });
+    const showFavorites = indexFilter !== 'group' && (!q || 'mes favoris'.includes(q));
+    const groupCount = setlists.filter(s => s.group_id).length;
+
+    return (
+      <div className="max-w-[1080px] mx-auto flex flex-col gap-6">
+        {dialogs}
+
+        {showCreateModal && (
+          <Modal title="Nouvelle setlist" onClose={() => setShowCreateModal(false)} width="md">
+            <form onSubmit={handleCreateSetlist} className="flex flex-col gap-4">
+              <label className="flex flex-col gap-1.5">
+                <span className={labelCls}>Nom</span>
+                <input autoFocus type="text" placeholder="Répétition jeudi" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className={inputCls} />
+              </label>
+              <div className="flex flex-col gap-1.5">
+                <span className={labelCls} id="lbl-mode">Présentation</span>
+                <Segmented
+                  label="Présentation"
+                  value={newSetlistMode}
+                  onChange={setNewSetlistMode}
+                  options={[{ value: 'list', label: 'Liste' }, { value: 'document', label: 'Document' }]}
+                  className="self-start"
+                />
+                <span className="text-sm text-slate-500 dark:text-slate-400">
+                  {newSetlistMode === 'list' ? 'Les morceaux et les notes s\'enchaînent dans l\'ordre.' : 'Mise en page libre, avec texte riche entre les morceaux.'}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <span className={labelCls} id="lbl-icon">Icône</span>
+                <SetlistIconPicker value={newIcon} onChange={setNewIcon} labelledBy="lbl-icon" />
+              </div>
+              {groups.length > 0 && (
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelCls}>Partager avec</span>
+                  <select value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)} className={inputCls}>
+                    <option value="">Personne (setlist personnelle)</option>
+                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                </label>
+              )}
+              <div className="flex flex-wrap justify-end gap-2 pt-1">
+                <button type="button" onClick={() => setShowCreateModal(false)} className={secondaryBtn + ' h-11'}>Annuler</button>
+                <button type="submit" disabled={!newTitle.trim()} className={primarySm}>Créer</button>
+              </div>
+            </form>
+          </Modal>
+        )}
+
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="m-0 font-display font-extrabold text-4xl leading-tight" style={{ letterSpacing: '-0.025em' }}>Setlists</h1>
+            <p className="mt-1.5 mb-0 text-slate-600 dark:text-slate-400">
+              {loading ? 'Chargement…' : setlists.length === 0 ? 'Préparez l\'ordre de vos concerts et répétitions.' : `${plural(setlists.length, 'setlist')}${groupCount ? `, dont ${groupCount} de groupe` : ''}.`}
+            </p>
           </div>
-        </div>
-        <div className="flex items-center gap-4">
-          {currentItem.type === 'song' && onSaveSong && (
-            <button
-              onClick={() => setPerformanceEditingSong(currentItem.song)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-ink dark:hover:text-white transition-colors"
-            >
-              <Edit2 size={18} />
-              <span className="hidden sm:inline">Modifier</span>
-            </button>
-          )}
-          <button
-            onClick={() => setNotationMode(m => m === NotationMode.LETTERS ? NotationMode.DEGREES : NotationMode.LETTERS)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-ink dark:hover:text-white transition-colors"
-          >
-            {notationMode === NotationMode.LETTERS ? <Hash size={18} /> : <Type size={18} />}
-            <span className="hidden sm:inline">{notationMode === NotationMode.LETTERS ? 'Letters' : 'Degrees'}</span>
-          </button>
-          <div className="h-8 w-px bg-slate-100 dark:bg-slate-800 mx-2" />
-          <button disabled={performanceIndex === 0} onClick={() => setPerformanceIndex(p => p - 1)}
-            className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-ink dark:text-white disabled:opacity-30 hover:bg-cyan-600 transition-colors">
-            <ChevronLeft size={24} />
-          </button>
-          <div className="text-xl font-mono text-cyan-600 dark:text-cyan-400 font-bold w-8 text-center">{performanceIndex + 1}</div>
-          <button disabled={performanceIndex === setlistItems.length - 1} onClick={() => setPerformanceIndex(p => p + 1)}
-            className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-ink dark:text-white disabled:opacity-30 hover:bg-cyan-600 transition-colors">
-            <ChevronRight size={24} />
+          <button type="button" onClick={openCreateModal} className={primarySm}>
+            <Plus size={18} /> Nouvelle setlist
           </button>
         </div>
-      </div>
-      <div className="flex-1 overflow-y-auto p-6 scroll-smooth bg-slate-100 dark:bg-slate-950">
-        <div className="max-w-4xl mx-auto">
-          {currentItem.type === 'song' ? (
-            <SongSheet
-              song={currentItem.song}
-              transposeSemitones={currentItem.transpose}
-              notationMode={notationMode}
+
+        <div className="flex flex-wrap gap-2 items-center">
+          <Segmented
+            label="Filtrer"
+            value={indexFilter}
+            onChange={setIndexFilter}
+            options={[
+              { value: 'all', label: 'Toutes' },
+              { value: 'personal', label: 'Personnelles' },
+              { value: 'group', label: 'Groupes' }
+            ]}
+          />
+          <label className="flex-[1_1_240px] flex items-center gap-2.5 h-10 px-3 rounded-md border border-slate-400 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus-within:border-cyan-600 dark:focus-within:border-cyan-400">
+            <Search size={16} className="text-slate-500 shrink-0" aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="Filtrer les setlists"
+              placeholder="Filtrer par nom ou groupe"
+              value={indexQuery}
+              onChange={(e) => setIndexQuery(e.target.value)}
+              className="flex-1 min-w-0 bg-transparent border-0 outline-none placeholder:text-slate-500"
             />
-          ) : (
-            <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8 min-h-[400px] flex items-center justify-center text-center">
-              <div className="max-w-2xl">
-                <div className={`text-2xl font-bold mb-4 ${TEXT_SIZES[currentItem.size]?.uiClass || ''}`} style={{ color: TEXT_COLORS[currentItem.color]?.hex || '#fff' }}>
-                  {currentItem.content}
-                </div>
-              </div>
-            </div>
-          )}
+          </label>
         </div>
-      </div>
-    </div>
-  );
-}
 
-if (!currentSetlist) {
-  const personalSetlists = setlists.filter(s => !s.group_id);
-  const groupSetlists = groups.map(g => ({
-    group: g, lists: setlists.filter(s => s.group_id === g.id)
-  })).filter(g => g.lists.length > 0);
+        <ul className="list-none m-0 p-0 border-t-[1.5px] border-ink dark:border-slate-300">
+          {showFavorites && (
+            <li className="flex flex-wrap items-center gap-x-5 gap-y-3 px-1 py-4 border-b border-slate-200 dark:border-slate-800">
+              <span aria-hidden="true" className="w-16 h-[58px] flex items-center justify-center rounded-md border border-slate-200 dark:border-slate-800 bg-red-50 dark:bg-red-900 text-red-500 dark:text-red-400">
+                <Heart size={22} fill="currentColor" />
+              </span>
+              <button type="button" onClick={() => handleSelectSetlist(favoriteSetlist)} className="flex-[1_1_260px] min-w-0 flex flex-col gap-0.5 text-left">
+                <span className="font-display font-bold text-[21px] leading-tight hover:underline underline-offset-[3px] decoration-1">Mes favoris</span>
+                <span className="text-sm text-slate-600 dark:text-slate-400">Liste dynamique · {plural(favoriteCount, 'chanson')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectSetlist(favoriteSetlist, true)}
+                disabled={favoriteCount === 0}
+                aria-label="Défilement, ouvrir Mes favoris en mode scène"
+                title="Défilement"
+                className="inline-flex items-center justify-center w-10 h-10 rounded-md border border-red-500 text-red-600 dark:border-red-400 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900 disabled:opacity-40"
+              >
+                <Play size={12} fill="currentColor" />
+              </button>
+            </li>
+          )}
+
+          {visible.map(s => {
+            const SetlistIcon = getSetlistIcon(s.icon);
+            const meta = [
+              `Créée le ${fmtShort(s.created_at)}`,
+              groupName(s.group_id) || 'Personnelle',
+              s.song_count !== undefined ? morceaux(s.song_count) : null,
+              s.mode === 'document' ? 'Document' : null
+            ].filter(Boolean).join(' · ');
+            return (
+              <li key={s.id} className="group flex flex-wrap items-center gap-x-5 gap-y-3 px-1 py-4 border-b border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => { setIconError(null); setIconEditId(s.id); }}
+                  aria-label={`Changer l'icône de ${s.title}`}
+                  title="Changer l'icône"
+                  className="w-16 h-[58px] flex items-center justify-center rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-cyan-600 dark:text-cyan-400 hover:border-cyan-600 dark:hover:border-cyan-400 transition-colors"
+                >
+                  <SetlistIcon size={24} />
+                </button>
+                <button type="button" onClick={() => handleSelectSetlist(s)} className="flex-[1_1_260px] min-w-0 flex flex-col gap-0.5 text-left">
+                  <span className="font-display font-bold text-[21px] leading-tight hover:underline underline-offset-[3px] decoration-1 break-words">{s.title}</span>
+                  <span className="text-sm text-slate-600 dark:text-slate-400">{meta}</span>
+                </button>
+                <span className="flex items-center gap-1">
+                  <button type="button" onClick={(e) => confirmDuplicateSetlist(s.id, e)} aria-label={`Dupliquer ${s.title}`} title="Dupliquer" className={iconBtn + ' w-10 h-10'}>
+                    <Copy size={17} />
+                  </button>
+                  <button type="button" onClick={(e) => confirmDeleteSetlist(s.id, e)} aria-label={`Supprimer ${s.title}`} title="Supprimer" className={iconBtn + ' w-10 h-10 hover:text-red-600 dark:hover:text-red-400'}>
+                    <Trash2 size={17} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectSetlist(s, true)}
+                    disabled={s.song_count === 0}
+                    aria-label={`Défilement, ouvrir ${s.title} en mode scène`}
+                    title="Défilement"
+                    className="ml-1 inline-flex items-center justify-center w-10 h-10 rounded-md border border-red-500 text-red-600 dark:border-red-400 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900 disabled:opacity-40"
+                  >
+                    <Play size={12} fill="currentColor" />
+                  </button>
+                </span>
+              </li>
+            );
+          })}
+
+          {!loading && visible.length === 0 && (
+            <li className="py-10 px-1 flex flex-col items-start gap-3">
+              {setlists.length === 0 ? (
+                <>
+                  <h2 className="m-0 font-display font-extrabold text-[28px] leading-tight" style={{ letterSpacing: '-0.02em' }}>Aucune setlist pour l'instant</h2>
+                  <p className="m-0 text-slate-600 dark:text-slate-400">Une setlist, c'est l'ordre de passage d'un concert ou d'une répétition. Vous pourrez la jouer en mode scène.</p>
+                  <button type="button" onClick={openCreateModal} className={primarySm}><Plus size={18} /> Créer une setlist</button>
+                </>
+              ) : (
+                <>
+                  <h2 className="m-0 font-display font-bold text-[21px]">Aucune setlist ne correspond</h2>
+                  <button type="button" onClick={() => { setIndexQuery(''); setIndexFilter('all'); }} className={btnSm}>Effacer les filtres</button>
+                </>
+              )}
+            </li>
+          )}
+        </ul>
+      </div>
+    );
+  }
+
+  // ── Detail ────────────────────────────────────────────────────────────────
+  const songCount = setlistItems.filter(i => i.type === 'song').length;
+  const detailMeta = isVirtual
+    ? `Liste dynamique · ${plural(songCount, 'chanson')}`
+    : [
+        `Créée le ${fmtLong(currentSetlist.created_at)}`,
+        groupName(currentSetlist.group_id) || 'Personnelle',
+        morceaux(songCount)
+      ].join(' · ');
+
+  const inSetlist = new Set(setlistItems.filter((i): i is SongItem => i.type === 'song').map(i => i.song.id));
+  const lq = searchQuery.trim().toLowerCase();
+  const librarySongs = allSongs
+    .filter(s => {
+      if (librarySource === 'favorites' && !s.is_favorite) return false;
+      if (librarySource === 'group' && s.shared_with_group_id !== currentSetlist.group_id) return false;
+      if (!lq) return true;
+      return s.title.toLowerCase().includes(lq) || (s.artist || '').toLowerCase().includes(lq);
+    })
+    .sort((a, b) => a.title.localeCompare(b.title, 'fr'))
+    .slice(0, 40);
+
+  let songNumber = 0;
 
   return (
-    <div className="max-w-4xl mx-auto pb-20">
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60">
-          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
-            <div className="flex flex-col items-center text-center mb-6">
-              <div className="w-12 h-12 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mb-4">
-                <AlertTriangle size={24} />
-              </div>
-              <h3 className="text-xl font-bold text-ink dark:text-white mb-2">Supprimer la setlist ?</h3>
-              <p className="text-slate-600 dark:text-slate-400 text-sm">Cette action est définitive.</p>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowDeleteModal(false)}
-                className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors">Annuler</button>
-              <button onClick={executeDeleteSetlist}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors">Supprimer</button>
-            </div>
-          </div>
-        </div>
-      )}
+    <div className="flex flex-col gap-5">
+      {dialogs}
 
-      {showDuplicateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60">
-          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
-            <div className="flex flex-col items-center text-center mb-6">
-              <div className="w-12 h-12 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400 rounded-full flex items-center justify-center mb-4">
-                <Copy size={24} />
-              </div>
-              <h3 className="text-xl font-bold text-ink dark:text-white mb-2">Dupliquer la setlist ?</h3>
-              <p className="text-slate-600 dark:text-slate-400 text-sm">Une copie de cette setlist sera créée avec tous ses morceaux.</p>
+      {showRenameModal && (
+        <Modal title="Renommer la setlist" onClose={() => setShowRenameModal(false)}>
+          <form onSubmit={handleUpdateSetlistTitle} className="flex flex-col gap-4">
+            <label className="flex flex-col gap-1.5">
+              <span className={labelCls}>Nom</span>
+              <input autoFocus type="text" value={editTitleValue} onChange={(e) => setEditTitleValue(e.target.value)} className={inputCls} />
+            </label>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => setShowRenameModal(false)} className={secondaryBtn + ' h-11'}>Annuler</button>
+              <button type="submit" disabled={!editTitleValue.trim()} className={primarySm}>Enregistrer</button>
             </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowDuplicateModal(false)}
-                className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors">Annuler</button>
-              <button onClick={executeDuplicateSetlist}
-                className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors">Dupliquer</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-ink dark:text-white mb-2">Setlists</h1>
-          <p className="text-slate-600 dark:text-slate-400">Préparez l’ordre de vos concerts et répétitions.</p>
-        </div>
-        <button onClick={onBack} className="text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white flex items-center gap-2"><ChevronLeft size={20} /> Retour</button>
-      </div>
-
-      <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 sm:p-6 mb-8">
-        <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-4">Nouvelle setlist</h3>
-        <form onSubmit={handleCreateSetlist} className="flex flex-col sm:flex-row gap-3">
-          <input type="text" placeholder="Concert au bar…" value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-4 py-3 sm:py-2 text-ink dark:text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500" />
-          <div className="flex items-center bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-1 shrink-0">
-            <button
-              type="button"
-              onClick={() => setNewSetlistMode('list')}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${newSetlistMode === 'list' ? 'bg-cyan-600 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white'}`}
-            >
-              Liste
-            </button>
-            <button
-              type="button"
-              onClick={() => setNewSetlistMode('document')}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${newSetlistMode === 'document' ? 'bg-cyan-600 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white'}`}
-            >
-              Document
-            </button>
-          </div>
-          {groups.length > 0 && (
-            <div className="flex-1 sm:flex-none sm:w-48">
-              <select value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-4 py-3 sm:py-2 text-ink dark:text-white focus:outline-none focus:border-cyan-500 appearance-none">
-                <option value="">Personnelle</option>
-                {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-              </select>
-            </div>
-          )}
-          <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-3 sm:py-2 rounded-lg flex items-center justify-center gap-2 font-bold shadow-lg active:scale-95 transition-all">
-            <Plus size={20} /> Créer
-          </button>
-        </form>
-      </div>
-
-      <div className="space-y-8">
-        <div>
-          <h3 className="text-ink dark:text-white font-bold mb-4 flex items-center gap-2">
-            <User size={18} className="text-cyan-600 dark:text-cyan-400" /> Personnelle
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* VIRTUAL FAVORITES CARD */}
-            <div
-              onClick={() => handleSelectSetlist(favoriteSetlist)}
-              className="bg-red-50 dark:bg-red-900/40 border border-red-200 dark:border-red-500/30 rounded-xl p-6 cursor-pointer hover:border-pink-500 transition-all group relative overflow-hidden"
-            >
-              <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
-                <Heart size={100} fill="currentColor" className="text-pink-500" />
-              </div>
-              <div className="flex justify-between items-start relative z-10">
-                <div>
-                  <h3 className="text-xl font-bold text-ink dark:text-white mb-1 group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors flex items-center gap-2">
-                    <Heart size={20} fill="currentColor" className="text-pink-500 animate-pulse" /> Mes favoris
-                  </h3>
-                  <div className="text-xs text-slate-500 flex items-center gap-2">
-                    Dynamic List • {allSongs.filter(s => s.is_favorite).length} songs
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {personalSetlists.map(list => (
-              <SetlistCard key={list.id} list={list} onDelete={confirmDeleteSetlist} onDuplicate={confirmDuplicateSetlist} onSelect={handleSelectSetlist} />
-            ))}
-          </div>
-        </div>
-
-        {groupSetlists.map(g => (
-          <div key={g.group.id}>
-            <h3 className="text-ink dark:text-white font-bold mb-4 flex items-center gap-2"><Users size={18} className="text-cyan-600 dark:text-cyan-400" /> {g.group.name}</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {g.lists.map(list => <SetlistCard key={list.id} list={list} onDelete={confirmDeleteSetlist} onDuplicate={confirmDuplicateSetlist} onSelect={handleSelectSetlist} />)}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const isVirtual = currentSetlist?.id === FAVORITES_ID;
-
-  return (
-    <div className="max-w-6xl mx-auto min-h-[calc(100vh-140px)] flex flex-col relative px-4 sm:px-0">
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60">
-          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
-            <div className="flex flex-col items-center text-center mb-6">
-              <div className="w-12 h-12 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mb-4">
-                <AlertTriangle size={24} />
-              </div>
-              <h3 className="text-xl font-bold text-ink dark:text-white mb-2">Supprimer la setlist ?</h3>
-              <p className="text-slate-600 dark:text-slate-400 text-sm">Cette action est définitive.</p>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowDeleteModal(false)}
-                className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors">Annuler</button>
-              <button onClick={executeDeleteSetlist}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors">Supprimer</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showDuplicateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60">
-          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
-            <div className="flex flex-col items-center text-center mb-6">
-              <div className="w-12 h-12 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400 rounded-full flex items-center justify-center mb-4">
-                <Copy size={24} />
-              </div>
-              <h3 className="text-xl font-bold text-ink dark:text-white mb-2">Dupliquer la setlist ?</h3>
-              <p className="text-slate-600 dark:text-slate-400 text-sm">Une copie de cette setlist sera créée avec tous ses morceaux.</p>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowDuplicateModal(false)}
-                className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors">Annuler</button>
-              <button onClick={executeDuplicateSetlist}
-                className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors">Dupliquer</button>
-            </div>
-          </div>
-        </div>
+          </form>
+        </Modal>
       )}
 
       {editingTextId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60">
-          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 max-w-md w-full shadow-2xl">
-            <h3 className="text-xl font-bold text-ink dark:text-white mb-4">
-              {editingTextId === 'new' ? 'Add Text Note' : 'Edit Text Note'}
-            </h3>
-            
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Texte</label>
-                <textarea
-                  value={editingTextValue}
-                  onChange={(e) => setEditingTextValue(e.target.value)}
-                  placeholder="Votre note…"
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-3 py-2 text-ink dark:text-white focus:outline-none focus:border-cyan-500 h-24 resize-none"
-                />
-              </div>
-              
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Taille</label>
-                  <select 
-                    value={editingTextSize} 
-                    onChange={(e) => setEditingTextSize(e.target.value as any)}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-3 py-2 text-ink dark:text-white focus:outline-none focus:border-cyan-500"
-                  >
-                    {Object.entries(TEXT_SIZES).map(([key, size]) => (
-                      <option key={key} value={key}>{size.description}</option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Couleur</label>
-                  <select 
-                    value={editingTextColor} 
-                    onChange={(e) => setEditingTextColor(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-3 py-2 text-ink dark:text-white focus:outline-none focus:border-cyan-500"
-                  >
-                    {Object.entries(TEXT_COLORS).map(([key, color]) => (
-                      <option key={key} value={key}>{color.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setEditingTextId(null)} className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white">Annuler</button>
-              <button 
-                onClick={saveTextNote} 
-                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium"
-              >
-                Enregistrer
-              </button>
-            </div>
+        <Modal
+          title={editingTextId === 'new' ? 'Ajouter une note' : 'Modifier la note'}
+          onClose={() => setEditingTextId(null)}
+          width="md"
+          footer={<>
+            <button type="button" onClick={() => setEditingTextId(null)} className={secondaryBtn + ' h-11'}>Annuler</button>
+            <button type="button" onClick={saveTextNote} disabled={!editingTextValue.trim()} className={primarySm}>Enregistrer</button>
+          </>}
+        >
+          <label className="flex flex-col gap-1.5">
+            <span className={labelCls}>Texte</span>
+            <textarea
+              autoFocus
+              value={editingTextValue}
+              onChange={(e) => setEditingTextValue(e.target.value)}
+              placeholder="Pause, Théo passe à la mandoline"
+              className={inputCls + ' h-24 py-2 resize-none'}
+            />
+          </label>
+          <div className="flex gap-4">
+            <label className="flex-1 flex flex-col gap-1.5">
+              <span className={labelCls}>Taille (PDF)</span>
+              <select value={editingTextSize} onChange={(e) => setEditingTextSize(e.target.value as any)} className={inputCls}>
+                {Object.entries(TEXT_SIZES).map(([key, size]) => (
+                  <option key={key} value={key}>{size.description}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex-1 flex flex-col gap-1.5">
+              <span className={labelCls}>Couleur (PDF)</span>
+              <select value={editingTextColor} onChange={(e) => setEditingTextColor(e.target.value)} className={inputCls}>
+                {Object.entries(TEXT_COLORS).map(([key, color]) => (
+                  <option key={key} value={key}>{color.label}</option>
+                ))}
+              </select>
+            </label>
           </div>
-        </div>
+        </Modal>
       )}
 
       {showPdfModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60">
-        <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl w-96 shadow-2xl">
-          <h3 className="text-xl font-bold text-ink dark:text-white mb-4">Exporter en PDF</h3>
-          <div className="mb-3">
-            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Titre du document</label>
-            <input type="text" value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-3 py-2 text-ink dark:text-white focus:outline-none focus:border-cyan-500" />
-          </div>
-          <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-            Les chansons et les notes s’enchaînent <span className="text-slate-700 dark:text-slate-300">en continu</span>. Une chanson qui ne tient pas sur la page commence automatiquement sur la suivante.
+        <Modal
+          title="Exporter en PDF"
+          onClose={() => setShowPdfModal(false)}
+          footer={<>
+            <button type="button" onClick={() => setShowPdfModal(false)} className={secondaryBtn + ' h-11'}>Annuler</button>
+            <button type="button" onClick={exportToPDF} className={primarySm}><FileDown size={16} /> Exporter</button>
+          </>}
+        >
+          <label className="flex flex-col gap-1.5">
+            <span className={labelCls}>Titre du document</span>
+            <input type="text" value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)} className={inputCls} />
+          </label>
+          <p className="m-0 text-sm text-slate-600 dark:text-slate-400">
+            Les chansons et les notes s'enchaînent en continu. Une chanson qui ne tient pas sur la page commence sur la suivante.
           </p>
-          <div className="flex justify-end gap-2">
-            <button onClick={() => setShowPdfModal(false)} className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white">Annuler</button>
-            <button onClick={exportToPDF} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg flex items-center gap-2">
-              <FileDown size={16} /> Exporter
-            </button>
-          </div>
+        </Modal>
+      )}
+
+      <nav aria-label="Fil d'Ariane" className="text-sm text-slate-500 dark:text-slate-400">
+        <button type="button" onClick={() => setCurrentSetlist(null)} className="text-slate-600 dark:text-slate-400 underline underline-offset-[3px] decoration-1 hover:text-ink dark:hover:text-slate-100">Setlists</button>
+        <span aria-hidden="true"> / </span>
+        <span className="text-ink dark:text-slate-100 font-semibold">{currentSetlist.title}</span>
+      </nav>
+
+      <header className="flex flex-wrap items-end justify-between gap-4 pb-4 border-b-[1.5px] border-ink dark:border-slate-300">
+        <div className="flex flex-col gap-1.5 min-w-0">
+          <h1 className="m-0 font-display font-extrabold text-3xl md:text-4xl leading-[1.05] flex items-center gap-3 break-words" style={{ letterSpacing: '-0.025em' }}>
+            {isVirtual && <Heart size={28} className="text-red-500 dark:text-red-400 shrink-0" fill="currentColor" aria-hidden="true" />}
+            {currentSetlist.title}
+          </h1>
+          <p className="m-0 text-slate-600 dark:text-slate-400 first-letter:uppercase">{detailMeta}</p>
         </div>
-      </div>
-    )}
-
-    <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 flex-shrink-0">
-      <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
-        <button onClick={() => setCurrentSetlist(null)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white shrink-0">
-          <ChevronLeft size={20} />
-        </button>
-        <div className="flex items-center gap-2 min-w-0">
-          {isEditingTitle && !isVirtual ? (
-            <form
-              onSubmit={(e) => { e.preventDefault(); handleUpdateSetlistTitle(); }}
-              className="flex items-center gap-2"
-            >
-              <input
-                autoFocus
-                type="text"
-                value={editTitleValue}
-                onChange={(e) => setEditTitleValue(e.target.value)}
-                onBlur={handleUpdateSetlistTitle}
-                className="bg-slate-50 dark:bg-slate-950 border border-cyan-500 rounded px-2 py-1 text-xl font-bold text-ink dark:text-white focus:outline-none" />
-            </form>
-          ) : (
-            <div className="flex items-center gap-3 group min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold text-ink dark:text-white cursor-pointer flex items-center gap-3 truncate" onClick={() => !isVirtual && setIsEditingTitle(true)}>
-                {isVirtual && <Heart size={24} className="text-pink-500 shrink-0" fill="currentColor" />}
-                <span className="truncate">{currentSetlist.title}</span>
-              </h1>
-              {!isVirtual && (
-                <button onClick={() => setIsEditingTitle(true)} className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-400 transition-opacity">
-                  <Edit2 size={16} />
-                </button>
-              )}
-            </div>
-          )}
-
-          {currentSetlist.group_id && (
-            <span className="px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 text-xs border border-purple-200 dark:border-purple-800/50 flex items-center gap-1">
-              <Users size={12} />
-              Setlist de groupe
-            </span>
-          )}
-
-          {isVirtual && (
-            <span className="px-2 py-0.5 rounded-full bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 text-xs border border-pink-200 dark:border-pink-800/50 flex items-center gap-1">
-              Liste dynamique
-            </span>
-          )}
-        </div>
-
-      </div>
-      <div className="flex flex-wrap gap-2 sm:gap-3 w-full sm:w-auto">
-        <button
-          onClick={() => setNotationMode(m => m === NotationMode.LETTERS ? NotationMode.DEGREES : NotationMode.LETTERS)}
-          className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-ink dark:hover:text-white transition-colors"
-        >
-          {notationMode === NotationMode.LETTERS ? <Hash size={18} /> : <Type size={18} />}
-          <span>{notationMode === NotationMode.LETTERS ? 'Letters' : 'Degrees'}</span>
-        </button>
-
-        <button
-          onClick={startPerformance}
-          disabled={setlistItems.length === 0}
-          className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
-        >
-          <Play size={18} />
-          Mode scène
-        </button>
-        <button onClick={() => setShowPdfModal(true)} disabled={setlistItems.length === 0}
-          className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-cyan-600 dark:text-cyan-400 rounded-lg font-medium transition-colors disabled:opacity-50 text-sm sm:text-base">
-          <FileDown size={18} /> <span className="hidden sm:inline">Exporter en PDF</span><span className="sm:hidden">PDF</span>
-        </button>
-
-        {!isVirtual && (
-          <div className="relative" ref={actionsMenuRef}>
-            <button
-              onClick={() => setShowActionsMenu(v => !v)}
-              className="flex items-center justify-center p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-ink dark:hover:text-white rounded-lg transition-colors"
-            >
-              <MoreVertical size={18} />
-            </button>
-            {showActionsMenu && (
-              <div className="absolute right-0 mt-2 w-44 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-2xl z-40 overflow-hidden">
-                <button
-                  onClick={() => { setShowActionsMenu(false); confirmDuplicateSetlist(currentSetlist.id); }}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors text-left"
-                >
-                  <Copy size={16} /> Dupliquer
-                </button>
-                <button
-                  onClick={() => { setShowActionsMenu(false); confirmDeleteSetlist(currentSetlist.id); }}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-400 transition-colors text-left"
-                >
-                  <Trash2 size={16} /> Supprimer
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-
-    {currentSetlist.mode === 'list' || isVirtual ? (
-    <div className="flex-1 flex flex-col lg:flex-row gap-6 lg:gap-8 overflow-visible lg:overflow-hidden pb-10">
-      <div className="w-full lg:w-7/12 flex flex-col bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden min-h-[400px]">
-        <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex justify-between items-center">
-          <div>
-            <h3 className="font-bold text-ink dark:text-white">Ordre de passage</h3>
-            <p className="text-xs text-slate-500">{setlistItems.length} items</p>
-          </div>
+        <div className="flex flex-wrap gap-2 items-center">
+          <Segmented
+            label="Notation"
+            value={notationMode}
+            onChange={setNotationMode}
+            options={[{ value: NotationMode.LETTERS, label: 'Lettres' }, { value: NotationMode.DEGREES, label: 'Degrés' }]}
+          />
           {!isVirtual && (
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={jumpToLibrary}
-                className="lg:hidden text-xs flex items-center gap-1 bg-cyan-50 dark:bg-cyan-900/30 hover:bg-cyan-50 dark:hover:bg-cyan-900/50 text-cyan-600 dark:text-cyan-400 py-1.5 px-3 rounded-md transition-colors border border-cyan-200 dark:border-cyan-800/50"
+            <button type="button" onClick={() => confirmDuplicateSetlist(currentSetlist.id)} className={btnSm}>Dupliquer</button>
+          )}
+          <button type="button" onClick={() => setShowPdfModal(true)} disabled={setlistItems.length === 0} className={btnSm}>Export PDF</button>
+          {!isVirtual && (
+            <div className="relative" ref={actionsMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowActionsMenu(v => !v)}
+                aria-label="Autres actions"
+                aria-expanded={showActionsMenu}
+                className={btnSm + ' w-[38px] px-0'}
               >
-                <Plus size={14} /> Ajouter une chanson
+                <MoreVertical size={18} />
               </button>
-              <button 
+              {showActionsMenu && (
+                <div className="absolute right-0 mt-1.5 w-48 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md shadow-xl z-40">
+                  <button
+                    type="button"
+                    onClick={() => { setShowActionsMenu(false); setShowRenameModal(true); }}
+                    className="w-full flex items-center gap-2.5 px-3 h-10 text-sm font-semibold text-left hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    <Edit2 size={15} /> Renommer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowActionsMenu(false); confirmDeleteSetlist(currentSetlist.id); }}
+                    className="w-full flex items-center gap-2.5 px-3 h-10 text-sm font-semibold text-left text-red-700 dark:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    <Trash2 size={15} /> Supprimer
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={startPerformance}
+            disabled={setlistItems.length === 0}
+            aria-label="Défilement, ouvrir le mode scène"
+            title="Défilement"
+            className="inline-flex items-center justify-center gap-2 h-[38px] px-4 rounded-md bg-red-500 hover:bg-red-600 text-white text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Play size={12} fill="currentColor" /> <span className="hidden sm:inline">Défilement</span>
+          </button>
+        </div>
+      </header>
+
+      {currentSetlist.mode === 'list' || isVirtual ? (
+        <div className="flex flex-wrap items-start gap-6 lg:gap-8">
+          <section aria-label="Ordre de passage" className="flex-[999_1_520px] min-w-0 flex flex-col gap-4">
+            {!isVirtual && (
+              <button type="button" onClick={jumpToLibrary} className={btnSm + ' self-start lg:hidden'}>
+                <Plus size={16} /> Ajouter une chanson
+              </button>
+            )}
+
+            <ol className="list-none m-0 p-0 flex flex-col">
+              {setlistItemsLoadedFor !== currentSetlist.id && (
+                <li className="py-10 text-slate-500 text-sm">Chargement…</li>
+              )}
+
+              {setlistItemsLoadedFor === currentSetlist.id && setlistItems.length === 0 && (
+                isVirtual ? (
+                  <li className="py-8 text-slate-600 dark:text-slate-400">Aucune chanson en favori pour l'instant. Ajoutez-en depuis la fiche d'une chanson.</li>
+                ) : (
+                  <>
+                    <li className="flex items-center gap-3.5 min-h-[52px] border-b border-dashed border-slate-400 text-slate-500">
+                      <span className="w-7 text-right font-mono font-bold">1</span>
+                      <span className="hidden lg:inline">Ajoutez une chanson depuis la bibliothèque, à droite</span>
+                      <span className="lg:hidden">Ajoutez une chanson depuis la bibliothèque</span>
+                    </li>
+                    <li className="flex items-center gap-3.5 min-h-[52px] border-b border-dashed border-slate-400 text-slate-400">
+                      <span className="w-7 text-right font-mono font-bold">2</span>
+                    </li>
+                  </>
+                )
+              )}
+
+              {setlistItemsLoadedFor === currentSetlist.id && setlistItems.map((item, index) => {
+                const reorder = !isVirtual && (
+                  <span className="flex items-center gap-0.5 shrink-0">
+                    <button type="button" onClick={() => moveItem(index, index - 1)} disabled={index === 0} aria-label="Monter" className={iconBtn}><ChevronUp size={18} /></button>
+                    <button type="button" onClick={() => moveItem(index, index + 1)} disabled={index === setlistItems.length - 1} aria-label="Descendre" className={iconBtn}><ChevronDown size={18} /></button>
+                    <button type="button" onClick={() => removeItemFromSetlist(item.id)} aria-label="Retirer de la setlist" className={iconBtn + ' hover:text-red-600 dark:hover:text-red-400'}><X size={18} /></button>
+                  </span>
+                );
+
+                if (item.type === 'text') {
+                  return (
+                    <li
+                      key={item.id}
+                      draggable={!isVirtual}
+                      onDragStart={(e) => handleDragStart(e, index)}
+                      onDragEnter={(e) => handleDragEnter(e, index)}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={(e) => e.preventDefault()}
+                      className="border-b border-slate-200 dark:border-slate-800"
+                    >
+                      <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-3.5 gap-y-1 min-h-[44px] py-1.5 pl-3 sm:pl-16 pr-1 bg-slate-100 dark:bg-slate-950">
+                        <span className="text-xs font-semibold uppercase text-amber-700 dark:text-amber-400 shrink-0" style={{ letterSpacing: '0.08em' }}>Note</span>
+                        <span aria-hidden="true" className="w-2 h-2 rounded-sm shrink-0" style={{ background: TEXT_COLORS[item.color]?.hex }} />
+                        <span className="flex-1 min-w-0 max-sm:order-last max-sm:basis-full max-sm:pb-1 italic text-slate-600 dark:text-slate-400 break-words">{item.content}</span>
+                        {!isVirtual && (
+                          <button type="button" onClick={() => handleEditNote(item)} aria-label="Modifier la note" className={iconBtn + ' max-sm:ml-auto'}><Edit2 size={15} /></button>
+                        )}
+                        {reorder}
+                      </div>
+                    </li>
+                  );
+                }
+
+                songNumber += 1;
+                const shownKey = item.song.key ? transposeChord(item.song.key, item.transpose) : '';
+                return (
+                  <li
+                    key={item.id}
+                    draggable={!isVirtual}
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragEnter={(e) => handleDragEnter(e, index)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => e.preventDefault()}
+                    className="border-b border-slate-200 dark:border-slate-800"
+                  >
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-3.5 gap-y-1 min-h-[56px] py-1.5 px-1">
+                      {!isVirtual && <GripVertical size={16} className="hidden sm:block text-slate-400 cursor-grab shrink-0" aria-hidden="true" />}
+                      <span className="w-7 text-right font-mono font-bold text-slate-500 shrink-0">{songNumber}</span>
+                      <span className="flex-1 min-w-0 max-sm:basis-[calc(100%-3rem)] flex flex-col leading-tight">
+                        <span className="font-semibold break-words">{item.song.title}</span>
+                        <span className="text-sm text-slate-500 dark:text-slate-400 truncate">{item.song.artist}</span>
+                      </span>
+                      <span className="flex items-center gap-0.5 shrink-0 max-sm:ml-[2.6rem] max-sm:mr-auto" role="group" aria-label={`Ton de ${item.song.title}`}>
+                        <button type="button" onClick={() => updateItemTranspose(item.id, item.transpose - 1)} aria-label="Baisser d'un demi-ton" className={iconBtn + ' w-7 h-7'}><Minus size={14} /></button>
+                        <span title={item.transpose !== 0 ? `${item.transpose > 0 ? '+' : ''}${item.transpose} demi-ton(s), original en ${item.song.key}` : 'Ton original'}>
+                          {shownKey ? <KeyBadge outlined={item.transpose !== 0}>{shownKey}</KeyBadge> : <span className="font-mono text-sm text-slate-500">{item.transpose > 0 ? '+' : ''}{item.transpose}</span>}
+                        </span>
+                        <button type="button" onClick={() => updateItemTranspose(item.id, item.transpose + 1)} aria-label="Monter d'un demi-ton" className={iconBtn + ' w-7 h-7'}><Plus size={14} /></button>
+                      </span>
+                      {reorder}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+
+            {!isVirtual && (
+              <button
+                type="button"
                 onClick={handleAddTextNote}
-                className="text-xs flex items-center gap-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-1.5 px-3 rounded-md transition-colors border border-slate-300 dark:border-slate-700 hover:border-slate-500"
+                className="self-start inline-flex items-center gap-1.5 h-[38px] px-3 rounded-md border border-dashed border-slate-400 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:border-slate-600 hover:text-ink dark:hover:text-slate-100"
               >
-                <Type size={14} /> <span className="hidden xs:inline">Ajouter une note</span><span className="xs:hidden">Note</span>
+                <Plus size={16} /> Ajouter une note
               </button>
-            </div>
-          )}
-          {isVirtual && <div className="text-xs text-pink-500 font-bold uppercase tracking-wider">Vos favoris</div>}
-        </div>
+            )}
+          </section>
 
-        <div className="flex-1 overflow-y-auto p-2 space-y-2">
-          {setlistItems.length === 0 && (
-            <div className="text-center text-slate-500 py-10 text-sm italic">
-              {isVirtual ? "You haven't favorited any songs yet." : "This setlist is empty. Add songs from the library."}
-            </div>
-          )}
-          {setlistItems.map((item, index) => (
-            <div
-              key={item.id}
-              draggable={!isVirtual}
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragEnter={(e) => handleDragEnter(e, index)}
-              onDragEnd={handleDragEnd}
-              onDragOver={(e) => e.preventDefault()}
-              className={`flex items-center gap-3 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-lg group hover:border-slate-300 dark:hover:border-slate-700 ${!isVirtual ? 'cursor-move' : 'cursor-default'}`}
+          {!isVirtual ? (
+            <aside
+              ref={libraryRef}
+              aria-label="Ajouter depuis la bibliothèque"
+              className="flex-[1_1_300px] min-w-0 lg:max-w-[380px] lg:sticky lg:top-6 flex flex-col gap-3.5 p-6 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl"
             >
-              <div className="flex flex-col items-center justify-center w-10 text-slate-600 gap-0.5 border-r border-slate-200/50 dark:border-slate-800/50 mr-1">
-                {!isVirtual && (
-                  <button 
-                    onClick={() => moveItem(index, index - 1)}
-                    disabled={index === 0}
-                    className="p-2 hover:text-cyan-600 dark:hover:text-cyan-400 disabled:opacity-0 transition-all focus:outline-none active:scale-125"
-                    title="Monter"
-                  >
-                    <ChevronUp size={20} />
-                  </button>
-                )}
-                <span className="text-[10px] font-bold leading-none select-none text-slate-500">{index + 1}</span>
-                {!isVirtual && (
-                  <button 
-                    onClick={() => moveItem(index, index + 1)}
-                    disabled={index === setlistItems.length - 1}
-                    className="p-2 hover:text-cyan-600 dark:hover:text-cyan-400 disabled:opacity-0 transition-all focus:outline-none active:scale-125"
-                    title="Descendre"
-                  >
-                    <ChevronDown size={20} />
-                  </button>
-                )}
-                {!isVirtual && <GripVertical className="cursor-grab hover:text-slate-600 dark:hover:text-slate-400 mt-1 shrink-0 md:block hidden" style={{ touchAction: 'none' }} size={14} />}
-              </div>
-
-              {item.type === 'song' ? (
-                <>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-ink dark:text-white break-words sm:truncate">{item.song.title}</div>
-                    <div className="text-xs text-slate-500 break-words sm:truncate">{item.song.artist} • Original: {item.song.key}</div>
-                  </div>
-
-                  <div className="flex items-center bg-slate-50 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-800 mr-2">
-                    <button
-                      onClick={() => updateItemTranspose(item.id, item.transpose - 1)}
-                      className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white"
-                    >
-                      <Minus size={14} />
-                    </button>
-                    <div className={`w-8 text-center text-xs font-mono font-bold ${item.transpose !== 0 ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-500'}`}>
-                      {item.transpose > 0 ? '+' : ''}{item.transpose}
-                    </div>
-                    <button
-                      onClick={() => updateItemTranspose(item.id, item.transpose + 1)}
-                      className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="flex-1 min-w-0 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Type size={14} className="text-slate-500" />
-                    <div className={`font-medium truncate ${TEXT_SIZES[item.size]?.uiClass}`} style={{ color: TEXT_COLORS[item.color]?.hex }}>
-                      {item.content || 'Text Note'}
-                    </div>
-                  </div>
-                  {!isVirtual && (
-                    <button 
-                      onClick={() => handleEditNote(item)}
-                      className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white rounded-md mr-2"
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {!isVirtual && (
-                  <button
-                    onClick={() => removeItemFromSetlist(item.id)}
-                    className="text-slate-600 hover:text-red-600 dark:hover:text-red-400 md:opacity-0 group-hover:opacity-100 transition-opacity p-2 ml-auto"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {!isVirtual && (
-      <div ref={libraryRef} className="w-full lg:w-5/12 flex flex-col bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden min-h-[400px]">
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-            <h3 className="font-bold text-ink dark:text-white mb-3">Bibliothèque</h3>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-              <input
-                type="text"
-                placeholder="Chercher dans la bibliothèque…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg py-2 pl-10 pr-4 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:border-cyan-500"
+              <h2 className="m-0 font-display font-bold text-lg">Bibliothèque</h2>
+              <label className="flex items-center gap-2 h-10 px-3 rounded-md border border-slate-400 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus-within:border-cyan-600 dark:focus-within:border-cyan-400">
+                <Search size={16} className="text-slate-500 shrink-0" aria-hidden="true" />
+                <input
+                  type="search"
+                  aria-label="Chercher dans la bibliothèque"
+                  placeholder="Chercher"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 min-w-0 bg-transparent border-0 outline-none placeholder:text-slate-500"
+                />
+              </label>
+              <Segmented
+                label="Source"
+                size="sm"
+                value={librarySource}
+                onChange={setLibrarySource}
+                className="self-start"
+                options={[
+                  { value: 'all', label: 'Toutes' },
+                  { value: 'favorites', label: 'Favoris' },
+                  ...(currentSetlist.group_id ? [{ value: 'group' as const, label: 'Groupe' }] : [])
+                ]}
               />
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-2 space-y-2">
-            {allSongs
-              .filter(s =>
-                !setlistItems.find(item => item.type === 'song' && item.song.id === s.id) &&
-                (s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                  s.artist.toLowerCase().includes(searchQuery.toLowerCase()))
-              )
-              .slice(0, 30)
-              .map(song => (
-                <div key={song.id} className="flex items-center justify-between p-3 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors group">
-                  <div className="min-w-0">
-                    <div className="font-medium text-slate-700 dark:text-slate-200 truncate group-hover:text-ink dark:group-hover:text-white">{song.title}</div>
-                    <div className="text-xs text-slate-500">{song.artist}</div>
-                  </div>
-                  <button
-                    onClick={() => addSongToSetlist(song)}
-                    className="p-2 sm:p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-cyan-600 hover:text-white text-cyan-500 rounded-md transition-colors border border-slate-300 dark:border-slate-700 hover:border-cyan-500"
-                  >
-                    <Plus size={18} />
-                  </button>
-                </div>
-              ))
-            }
-          </div>
+              <div className="flex flex-col lg:max-h-[60vh] lg:overflow-y-auto">
+                {librarySongs.length === 0 && (
+                  <p className="m-0 py-4 border-t border-slate-200 dark:border-slate-800 text-sm text-slate-500">Aucune chanson trouvée.</p>
+                )}
+                {librarySongs.map(song => {
+                  const added = inSetlist.has(song.id);
+                  return (
+                    <div key={song.id} className="flex items-center gap-2.5 py-2.5 border-t border-slate-200 dark:border-slate-800">
+                      <span className="flex-1 min-w-0 flex flex-col leading-tight">
+                        <span className="font-semibold truncate">{song.title}</span>
+                        <span className="text-sm text-slate-500 dark:text-slate-400 truncate">
+                          {song.artist}
+                          {song.key && <> · <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400">{song.key}</span></>}
+                        </span>
+                      </span>
+                      {added ? (
+                        <span className="text-sm font-semibold text-green-600 dark:text-green-400">Ajoutée</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => addSongToSetlist(song)}
+                          aria-label={`Ajouter ${song.title} à la setlist`}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:border-cyan-600 hover:text-cyan-600 dark:hover:border-cyan-400 dark:hover:text-cyan-400"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </aside>
+          ) : (
+            <aside className="flex-[1_1_300px] min-w-0 lg:max-w-[380px] flex flex-col gap-2 p-6 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl">
+              <h2 className="m-0 font-display font-bold text-lg">Liste dynamique</h2>
+              <p className="m-0 text-sm text-slate-600 dark:text-slate-400">
+                Elle se met à jour quand vous ajoutez ou retirez une chanson de vos favoris. Les changements de ton faits ici ne sont pas enregistrés.
+              </p>
+            </aside>
+          )}
         </div>
-      )}
-
-      {isVirtual && (
-        <div className="w-full lg:w-5/12 flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-900/50 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-10 text-center">
-          <Heart size={48} className="text-pink-500/20 mb-4" />
-          <h4 className="text-ink dark:text-white font-bold mb-2">Liste dynamique</h4>
-          <p className="text-slate-500 text-sm leading-relaxed">
-            This list automatically updates whenever you favorite or unfavorite a song in the library.
-            Changes to transposition here are local to this session.
-          </p>
+      ) : setlistItemsLoadedFor === currentSetlist.id ? (
+        <SetlistDocumentEditor
+          key={currentSetlist.id}
+          setlist={currentSetlist}
+          setlistItems={setlistItems}
+          allSongs={allSongs}
+          onSongOrderChange={handleDocumentSongOrderChange}
+          onSongRemoved={removeItemFromSetlist}
+          onSongTransposeChange={updateItemTranspose}
+          onSongInserted={handleDocumentSongInserted}
+          onLayoutDocumentChange={handleLayoutDocumentChange}
+        />
+      ) : (
+        <div className="flex-1 flex items-center justify-center text-slate-500 text-sm py-20">
+          Chargement du document…
         </div>
       )}
     </div>
-    ) : setlistItemsLoadedFor === currentSetlist.id ? (
-      <SetlistDocumentEditor
-        key={currentSetlist.id}
-        setlist={currentSetlist}
-        setlistItems={setlistItems}
-        allSongs={allSongs}
-        onSongOrderChange={handleDocumentSongOrderChange}
-        onSongRemoved={removeItemFromSetlist}
-        onSongTransposeChange={updateItemTranspose}
-        onSongInserted={handleDocumentSongInserted}
-        onLayoutDocumentChange={handleLayoutDocumentChange}
-      />
-    ) : (
-      <div className="flex-1 flex items-center justify-center text-slate-500 text-sm py-20">
-        Chargement du document...
-      </div>
-    )}
-  </div>
-);
+  );
 };
 
 export default SetlistEditor;

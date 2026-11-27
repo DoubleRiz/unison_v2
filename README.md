@@ -82,7 +82,7 @@ React 19 · TypeScript · Vite 6 · Supabase (Auth + PostgreSQL) · Tailwind CSS
 **Prérequis :** Node.js 20+
 
 1. Installer les dépendances : `npm install`
-2. Copier `.env.example` en `.env` et renseigner `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY`
+2. Copier `.env.example` en `.env` et renseigner `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY`
 3. Lancer le serveur de dev : `npm run dev` (port 3000)
 4. Tests : `npm test`
 
@@ -92,7 +92,7 @@ L'application est un site statique généré par Vite :
 
 - **Commande de build :** `npm run build`
 - **Dossier publié :** `dist/`
-- **Variables d'environnement (au moment du build) :** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+- **Variables d'environnement (au moment du build) :** `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
 
 Le fichier `public/.htaccess` est copié dans `dist/` au build. Il force le HTTPS, renvoie
 toute route inconnue vers `index.html` et règle le cache : les fichiers hachés de

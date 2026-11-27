@@ -1,31 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { Group, GroupMember } from '../types';
-import { Users, Plus, UserPlus, Check, X, Shield, Loader2, AlertCircle, Edit2, Save, Trash2, LogOut } from 'lucide-react';
+import { Group, GroupMember, Song } from '../types';
+import { Loader2, Send, X } from 'lucide-react';
+import { Eyebrow, Initials } from './ui/Brand';
+import { Modal } from './ui/Modal';
+import { alertCls, inputCls, labelCls, secondaryBtn } from './ui/styles';
 
 interface GroupManagerProps {
   user: any;
+  songs?: Song[];
   onClose: () => void;
 }
 
-const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
+type Membership = GroupMember & { groups?: Group };
+
+interface ConfirmState {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  action: () => Promise<void>;
+}
+
+const primaryBtn = 'inline-flex items-center justify-center gap-2 h-11 px-4 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white font-semibold transition-colors disabled:opacity-50';
+const smallBtn = 'inline-flex items-center justify-center h-9 px-3.5 rounded-md text-sm font-semibold transition-colors disabled:opacity-50';
+const linkDanger = 'h-9 px-2 text-sm font-semibold text-red-700 dark:text-red-400 underline underline-offset-[3px] decoration-1 disabled:opacity-50';
+
+const GroupManager: React.FC<GroupManagerProps> = ({ user, songs = [] }) => {
   const [groups, setGroups] = useState<Group[]>([]);
-  const [memberships, setMemberships] = useState<GroupMember[]>([]);
-  const [invitations, setInvitations] = useState<GroupMember[]>([]);
-  
+  const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [invitations, setInvitations] = useState<Membership[]>([]);
+  const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
+
   const [newGroupName, setNewGroupName] = useState('');
   const [inviteUsername, setInviteUsername] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
-  
-  // Edit Mode State
+  const [setlistCount, setSetlistCount] = useState<number | null>(null);
+
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [message, setMessage] = useState<{type: 'success'|'error', text: string} | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [createMessage, setCreateMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -34,36 +54,59 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
   useEffect(() => {
     if (selectedGroup) {
       fetchGroupMembers(selectedGroup.id);
+      fetchSetlistCount(selectedGroup.id);
       setEditNameValue(selectedGroup.name);
       setIsEditingName(false);
+      setInviteUsername('');
+    } else {
+      setGroupMembers([]);
     }
-  }, [selectedGroup]);
+  }, [selectedGroup?.id]);
 
-  const fetchData = async () => {
+  const flash = (setter: typeof setMessage, type: 'success' | 'error', text: string) => {
+    setter({ type, text });
+    if (type === 'success') setTimeout(() => setter(null), 3000);
+  };
+
+  const fetchData = async (selectId?: string) => {
     setLoading(true);
     setFetchError(null);
     try {
-      // 1. Get my memberships to find my groups
       const { data: myMemberships, error: memError } = await supabase
         .from('group_members')
-        .select('*, groups(*)') 
+        .select('*, groups(*)')
         .eq('user_id', user.id);
 
       if (memError) throw memError;
 
-      const accepted = myMemberships?.filter((m: any) => m.status === 'accepted') || [];
-      const pending = myMemberships?.filter((m: any) => m.status === 'pending') || [];
+      const accepted = (myMemberships || []).filter((m: any) => m.status === 'accepted') as Membership[];
+      const pending = (myMemberships || []).filter((m: any) => m.status === 'pending') as Membership[];
 
       setMemberships(accepted);
       setInvitations(pending);
-      
-      // Map 'groups' property from the join
-      const myGroups = accepted.map((m: any) => m.groups).filter(Boolean); // Filter nulls just in case
+
+      const myGroups = accepted.map(m => m.groups).filter(Boolean) as Group[];
+      myGroups.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
       setGroups(myGroups);
 
+      if (myGroups.length > 0) {
+        const { data: rows } = await supabase
+          .from('group_members')
+          .select('group_id')
+          .in('group_id', myGroups.map(g => g.id))
+          .eq('status', 'accepted');
+        const counts: Record<string, number> = {};
+        (rows || []).forEach((r: any) => { counts[r.group_id] = (counts[r.group_id] || 0) + 1; });
+        setMemberCounts(counts);
+      }
+
+      setSelectedGroup(prev => {
+        const wanted = selectId ?? prev?.id;
+        return myGroups.find(g => g.id === wanted) || myGroups[0] || null;
+      });
     } catch (error: any) {
       console.error('Error fetching groups:', error.message || error);
-      setFetchError(error.message || 'Failed to load groups');
+      setFetchError(error.message || 'Impossible de charger les groupes');
     } finally {
       setLoading(false);
     }
@@ -80,23 +123,30 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
     }
   };
 
+  const fetchSetlistCount = async (groupId: string) => {
+    setSetlistCount(null);
+    const { count, error } = await supabase
+      .from('setlists')
+      .select('id', { count: 'exact', head: true })
+      .eq('group_id', groupId);
+    if (!error) setSetlistCount(count ?? 0);
+  };
+
   const createGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGroupName.trim()) return;
     setActionLoading(true);
-    setMessage(null);
+    setCreateMessage(null);
 
     try {
-      // 1. Create Group
       const { data: groupData, error: groupError } = await supabase
         .from('groups')
-        .insert({ name: newGroupName, created_by: user.id })
+        .insert({ name: newGroupName.trim(), created_by: user.id })
         .select()
         .single();
 
       if (groupError) throw groupError;
 
-      // 2. Add creator as member (automatically accepted)
       const { error: memError } = await supabase
         .from('group_members')
         .insert({
@@ -109,11 +159,10 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
       if (memError) throw memError;
 
       setNewGroupName('');
-      fetchData();
-      setMessage({ type: 'success', text: 'Groupe créé.' });
-      setTimeout(() => setMessage(null), 3000);
+      await fetchData(groupData.id);
+      flash(setCreateMessage, 'success', 'Groupe créé.');
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
+      flash(setCreateMessage, 'error', error.message);
     } finally {
       setActionLoading(false);
     }
@@ -121,25 +170,25 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
 
   const inviteMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedGroup || !inviteUsername.trim()) return;
+    const username = inviteUsername.trim();
+    if (!selectedGroup || !username) return;
     setActionLoading(true);
     setMessage(null);
 
     try {
-      // 1. Find user by username
       const { data: foundUser, error: userError } = await supabase
         .from('users')
         .select('id')
-        .eq('username', inviteUsername)
+        .eq('username', username)
         .single();
 
-      if (userError || !foundUser) throw new Error('User not found');
+      if (userError || !foundUser) throw new Error(`Aucun compte ne porte le nom « ${username} ».`);
 
-      // 2. Check if already member
       const existing = groupMembers.find(m => m.user_id === foundUser.id);
-      if (existing) throw new Error('User is already in the group');
+      if (existing) {
+        throw new Error(existing.status === 'pending' ? `${username} a déjà une invitation en attente.` : `${username} fait déjà partie du groupe.`);
+      }
 
-      // 3. Create invitation
       const { error: inviteError } = await supabase
         .from('group_members')
         .insert({
@@ -153,30 +202,23 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
 
       setInviteUsername('');
       fetchGroupMembers(selectedGroup.id);
-      setMessage({ type: 'success', text: `Invitation sent to ${inviteUsername}` });
-      setTimeout(() => setMessage(null), 3000);
+      flash(setMessage, 'success', `Invitation envoyée à ${username}.`);
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
+      flash(setMessage, 'error', error.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleInvitation = async (memberId: string, accept: boolean) => {
+  const handleInvitation = async (memberId: string, accept: boolean, groupId?: string) => {
     setActionLoading(true);
     try {
       if (accept) {
-        await supabase
-          .from('group_members')
-          .update({ status: 'accepted' })
-          .eq('id', memberId);
+        await supabase.from('group_members').update({ status: 'accepted' }).eq('id', memberId);
       } else {
-        await supabase
-          .from('group_members')
-          .delete()
-          .eq('id', memberId);
+        await supabase.from('group_members').delete().eq('id', memberId);
       }
-      fetchData();
+      await fetchData(accept ? groupId : undefined);
     } catch (error) {
       console.error(error);
     } finally {
@@ -184,309 +226,327 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
     }
   };
 
-  const updateGroupName = async () => {
-    if (!selectedGroup || !editNameValue.trim()) return;
+  const updateGroupName = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const name = editNameValue.trim();
+    if (!selectedGroup || !name) return;
     setActionLoading(true);
     try {
-      const { error } = await supabase
-        .from('groups')
-        .update({ name: editNameValue })
-        .eq('id', selectedGroup.id);
-
+      const { error } = await supabase.from('groups').update({ name }).eq('id', selectedGroup.id);
       if (error) throw error;
 
-      // Update local state
-      setSelectedGroup({ ...selectedGroup, name: editNameValue });
-      setGroups(groups.map(g => g.id === selectedGroup.id ? { ...g, name: editNameValue } : g));
+      setSelectedGroup({ ...selectedGroup, name });
+      setGroups(groups.map(g => (g.id === selectedGroup.id ? { ...g, name } : g)));
       setIsEditingName(false);
-      setMessage({ type: 'success', text: 'Groupe renommé.' });
-      setTimeout(() => setMessage(null), 3000);
+      flash(setMessage, 'success', 'Groupe renommé.');
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
+      flash(setMessage, 'error', error.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  const removeMember = async (memberId: string, memberName: string) => {
-    if (!confirm(`Retirer ${memberName} du groupe ?`)) return;
-    
+  const removeMember = (memberId: string, memberName: string, pending: boolean) => {
+    setConfirm({
+      title: pending ? 'Annuler l\'invitation ?' : `Retirer ${memberName} ?`,
+      body: pending
+        ? `${memberName} ne pourra plus rejoindre le groupe avec cette invitation.`
+        : `${memberName} n'aura plus accès aux chansons et aux setlists du groupe.`,
+      confirmLabel: pending ? 'Annuler l\'invitation' : 'Retirer',
+      action: async () => {
+        const { error } = await supabase.from('group_members').delete().eq('id', memberId);
+        if (error) throw error;
+        setGroupMembers(members => members.filter(m => m.id !== memberId));
+        if (!pending && selectedGroup) {
+          setMemberCounts(c => ({ ...c, [selectedGroup.id]: Math.max(0, (c[selectedGroup.id] || 1) - 1) }));
+        }
+        flash(setMessage, 'success', pending ? 'Invitation annulée.' : `${memberName} a été retiré du groupe.`);
+      }
+    });
+  };
+
+  const leaveGroup = (memberId: string) => {
+    if (!selectedGroup) return;
+    setConfirm({
+      title: 'Quitter le groupe ?',
+      body: `Vous n'aurez plus accès aux chansons et aux setlists de ${selectedGroup.name}. Un membre devra vous réinviter pour revenir.`,
+      confirmLabel: 'Quitter le groupe',
+      action: async () => {
+        const { error } = await supabase.from('group_members').delete().eq('id', memberId);
+        if (error) throw error;
+        setSelectedGroup(null);
+        await fetchData();
+      }
+    });
+  };
+
+  const runConfirm = async () => {
+    if (!confirm) return;
     setActionLoading(true);
     try {
-      const { error } = await supabase.from('group_members').delete().eq('id', memberId);
-      if (error) throw error;
-      
-      // Update UI
-      setGroupMembers(groupMembers.filter(m => m.id !== memberId));
-      setMessage({ type: 'success', text: `${memberName} removed.` });
-      setTimeout(() => setMessage(null), 3000);
+      await confirm.action();
+      setConfirm(null);
     } catch (error: any) {
-       setMessage({ type: 'error', text: error.message });
+      setConfirm(null);
+      flash(setMessage, 'error', error.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  const leaveGroup = async (memberId: string) => {
-    if (!confirm("Quitter ce groupe ?")) return;
+  const isCreator = !!selectedGroup && selectedGroup.created_by === user.id;
+  const myMember = groupMembers.find(m => m.user_id === user.id);
+  const acceptedMembers = groupMembers
+    .filter(m => m.status === 'accepted')
+    .sort((a, b) => {
+      const rank = (m: GroupMember) => (m.user_id === user.id ? 0 : m.role === 'admin' ? 1 : 2);
+      return rank(a) - rank(b) || (a.user?.username || '').localeCompare(b.user?.username || '', 'fr');
+    });
+  const pendingMembers = groupMembers.filter(m => m.status === 'pending');
+  const sharedSongs = selectedGroup ? songs.filter(s => s.shared_with_group_id === selectedGroup.id).length : 0;
+  const roleOf = (groupId: string) => memberships.find(m => m.group_id === groupId)?.role;
 
-    setActionLoading(true);
-    try {
-      const { error } = await supabase.from('group_members').delete().eq('id', memberId);
-      if (error) throw error;
-
-      // Reset selection and refresh list
-      setSelectedGroup(null);
-      fetchData();
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
-      setActionLoading(false);
-    }
-  };
-
-  const isCreator = selectedGroup && selectedGroup.created_by === user.id;
+  const createForm = (
+    <form onSubmit={createGroup} className="flex flex-col gap-2">
+      <label htmlFor="new-group" className={labelCls}>Créer un groupe</label>
+      <div className="flex gap-2">
+        <input
+          id="new-group"
+          type="text"
+          placeholder="Nom du groupe"
+          value={newGroupName}
+          onChange={(e) => setNewGroupName(e.target.value)}
+          className={inputCls + ' h-10 flex-1 min-w-0'}
+        />
+        <button type="submit" disabled={actionLoading || !newGroupName.trim()} className={secondaryBtn}>
+          Créer
+        </button>
+      </div>
+      {createMessage && <p role="status" className={alertCls(createMessage.type)}>{createMessage.text}</p>}
+    </form>
+  );
 
   return (
-    <div className="max-w-4xl mx-auto pb-20">
-      <div className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-6 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-ink dark:text-white mb-2">Groupes</h1>
-          <p className="text-slate-600 dark:text-slate-400">Invitez les membres, partagez les chansons.</p>
-        </div>
-        <button onClick={onClose} className="text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white">
-          <X size={24} />
-        </button>
+    <div className="max-w-[1100px] mx-auto flex flex-col gap-7">
+      {confirm && (
+        <Modal
+          title={confirm.title}
+          onClose={() => setConfirm(null)}
+          footer={<>
+            <button type="button" onClick={() => setConfirm(null)} className={secondaryBtn + ' h-11'}>Annuler</button>
+            <button type="button" onClick={runConfirm} disabled={actionLoading} className="inline-flex items-center justify-center gap-2 h-11 px-4 rounded-md bg-red-500 hover:bg-red-600 text-white font-semibold disabled:opacity-50">
+              {actionLoading && <Loader2 size={16} className="animate-spin" />} {confirm.confirmLabel}
+            </button>
+          </>}
+        >
+          <p className="m-0 text-slate-600 dark:text-slate-400">{confirm.body}</p>
+        </Modal>
+      )}
+
+      <div>
+        <h1 className="m-0 font-display font-extrabold text-4xl leading-tight" style={{ letterSpacing: '-0.025em' }}>Groupes</h1>
+        <p className="mt-1.5 mb-0 text-slate-600 dark:text-slate-400">Partagez vos chansons et vos setlists avec les membres du groupe.</p>
       </div>
 
       {fetchError && (
-        <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 p-4 rounded-xl flex items-center gap-3">
-          <AlertCircle size={24} />
-          <div>
-            <h4 className="font-bold">Erreur de base de données</h4>
-            <p className="text-sm">{fetchError}. Please run the updated SQL script in Supabase.</p>
-          </div>
-        </div>
+        <p role="alert" className={alertCls('error')}>
+          <b>Impossible de charger les groupes.</b> {fetchError}
+        </p>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Left Col: List & Create */}
-        <div className="md:col-span-1 space-y-6">
-          
-          {/* Create Group */}
-          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
-            <h3 className="font-bold text-ink dark:text-white mb-3">Nouveau groupe</h3>
-            <form onSubmit={createGroup} className="flex gap-2 mb-2">
-              <input 
-                type="text" 
-                placeholder="Nom du groupe…" 
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-                className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-ink dark:text-white focus:outline-none focus:border-cyan-500"
-              />
-              <button 
-                disabled={actionLoading}
-                type="submit" 
-                className="bg-cyan-600 hover:bg-cyan-500 text-white p-2 rounded-lg disabled:opacity-50"
-              >
-                {actionLoading ? <Loader2 size={18} className="animate-spin"/> : <Plus size={18} />}
-              </button>
-            </form>
-            {!selectedGroup && message && (
-              <div className={`text-xs p-2 rounded ${message.type === 'error' ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'}`}>
-                {message.text}
-              </div>
+      <div className="flex flex-wrap gap-8 items-start">
+        {/* Colonne gauche : mes groupes, invitations, création */}
+        <div className="flex-[1_1_260px] min-w-0 flex flex-col gap-5">
+          <section className="flex flex-col gap-1">
+            <Eyebrow as="h2" className="mb-1.5">Mes groupes</Eyebrow>
+            {loading && (
+              <p className="m-0 py-2 text-sm text-slate-500 flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Chargement…</p>
             )}
-          </div>
-
-          {/* Pending Invitations */}
-          {invitations.length > 0 && (
-            <div className="bg-slate-50 dark:bg-slate-900 border border-yellow-200 dark:border-yellow-900/50 rounded-xl p-4">
-              <h3 className="font-bold text-amber-600 dark:text-amber-400 mb-3 text-sm uppercase tracking-wider">Invitations en attente</h3>
-              <div className="space-y-3">
-                {invitations.map((inv: any) => (
-                  <div key={inv.id} className="bg-slate-100 dark:bg-slate-950 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
-                    <div className="text-sm text-ink dark:text-white mb-2">
-                      Rejoindre <span className="font-bold">{inv.groups?.name}</span>?
-                    </div>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => handleInvitation(inv.id, true)}
-                        className="flex-1 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/50 py-1 rounded text-xs font-bold"
-                      >
-                        Accepter
-                      </button>
-                      <button 
-                        onClick={() => handleInvitation(inv.id, false)}
-                        className="flex-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 py-1 rounded text-xs font-bold"
-                      >
-                        Refuser
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* My Groups List */}
-          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-            <div className="p-4 bg-slate-100/50 dark:bg-slate-800/50 font-bold text-ink dark:text-white border-b border-slate-200 dark:border-slate-800">Mes groupes</div>
-            <div className="divide-y divide-slate-200 dark:divide-slate-800">
-              {groups.length === 0 && !loading && <div className="p-4 text-sm text-slate-500">Aucun groupe pour l’instant.</div>}
-              {loading && <div className="p-4 text-sm text-slate-500 flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Chargement…</div>}
-              {groups.map(group => (
-                <div 
-                  key={group.id} 
-                  onClick={() => {
-                    setSelectedGroup(group);
-                    setMessage(null);
-                  }}
-                  className={`p-4 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors ${selectedGroup?.id === group.id ? 'bg-slate-100 dark:bg-slate-800 border-l-2 border-cyan-500' : ''}`}
+            {!loading && groups.length === 0 && (
+              <p className="m-0 py-2 text-slate-600 dark:text-slate-400">Vous n'êtes dans aucun groupe pour l'instant.</p>
+            )}
+            {groups.map(group => {
+              const active = selectedGroup?.id === group.id;
+              const role = roleOf(group.id);
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  aria-current={active ? 'true' : undefined}
+                  onClick={() => { setSelectedGroup(group); setMessage(null); }}
+                  className={`flex items-center justify-between gap-3 p-3 rounded-md text-left transition-colors ${
+                    active
+                      ? 'bg-cyan-100 text-cyan-700 shadow-[inset_3px_0_0_#2440D6] dark:bg-cyan-900 dark:text-cyan-300 dark:shadow-[inset_3px_0_0_#93A5FF]'
+                      : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
                 >
-                  <div className="font-medium text-ink dark:text-white">{group.name}</div>
-                  <div className="text-xs text-slate-500">
-                     Created {new Date(group.created_at).toLocaleDateString()}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+                  <span className="flex flex-col leading-tight min-w-0">
+                    <span className={`${active ? 'font-bold' : 'font-semibold'} truncate`}>{group.name}</span>
+                    <span className={`text-sm ${active ? 'text-slate-600 dark:text-slate-400' : 'text-slate-500 dark:text-slate-400'}`}>{role === 'admin' ? 'Admin' : 'Membre'}</span>
+                  </span>
+                  {memberCounts[group.id] !== undefined && (
+                    <span className={`font-mono text-sm ${active ? '' : 'text-slate-500 dark:text-slate-400'}`} aria-label={`${memberCounts[group.id]} membres`}>
+                      {memberCounts[group.id]}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </section>
+
+          {invitations.map(inv => (
+            <section key={inv.id} className="flex flex-col gap-2 p-4 rounded-md border border-amber-600 bg-amber-50 dark:bg-amber-900 dark:border-amber-600">
+              <Eyebrow as="h2" className="!text-amber-700 dark:!text-amber-300">Invitation en attente</Eyebrow>
+              <p className="m-0"><b>{inv.groups?.name || 'Un groupe'}</b> vous invite à rejoindre le groupe.</p>
+              <div className="flex gap-2">
+                <button type="button" disabled={actionLoading} onClick={() => handleInvitation(inv.id, true, inv.group_id)} className={smallBtn + ' bg-cyan-600 hover:bg-cyan-700 text-white'}>
+                  Accepter
+                </button>
+                <button type="button" disabled={actionLoading} onClick={() => handleInvitation(inv.id, false)} className={smallBtn + ' border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:border-slate-500'}>
+                  Refuser
+                </button>
+              </div>
+            </section>
+          ))}
+
+          {createForm}
         </div>
 
-        {/* Right Col: Details */}
-        <div className="md:col-span-2">
-          {selectedGroup ? (
-            <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 min-h-[400px]">
-              {/* Group Header */}
-              <div className="flex justify-between items-start mb-6">
-                <div className="flex-1">
-                  {isCreator && isEditingName ? (
-                    <div className="flex items-center gap-2 mb-1">
-                      <input 
-                        autoFocus
-                        type="text" 
-                        value={editNameValue}
-                        onChange={(e) => setEditNameValue(e.target.value)}
-                        className="bg-slate-50 dark:bg-slate-950 border border-cyan-500 rounded px-2 py-1 text-2xl font-bold text-ink dark:text-white focus:outline-none"
-                      />
-                      <button onClick={updateGroupName} className="p-2 bg-green-600 rounded hover:bg-green-500 text-white"><Save size={18} /></button>
-                      <button onClick={() => setIsEditingName(false)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded hover:bg-slate-300 dark:hover:bg-slate-700 text-ink dark:text-white"><X size={18} /></button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3 group">
-                      <h2 className="text-2xl font-bold text-ink dark:text-white">{selectedGroup.name}</h2>
-                      {isCreator && (
-                        <button 
-                          onClick={() => setIsEditingName(true)} 
-                          className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-400 transition-opacity"
-                          title="Renommer le groupe"
+        {/* Détail du groupe */}
+        {selectedGroup ? (
+          <section aria-labelledby="group-title" className="flex-[999_1_480px] min-w-0 flex flex-col gap-6 p-6 md:px-7 border border-slate-200 dark:border-slate-800 rounded-xl">
+            <header className="flex flex-wrap items-start justify-between gap-3">
+              {isEditingName ? (
+                <form onSubmit={updateGroupName} className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+                  <label htmlFor="group-name" className="sr-only">Nom du groupe</label>
+                  <input
+                    id="group-name"
+                    autoFocus
+                    type="text"
+                    value={editNameValue}
+                    onChange={(e) => setEditNameValue(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setIsEditingName(false); }}
+                    className={inputCls + ' flex-1 min-w-[200px] font-display font-bold text-xl'}
+                  />
+                  <button type="submit" disabled={actionLoading || !editNameValue.trim()} className={primaryBtn}>Enregistrer</button>
+                  <button type="button" onClick={() => setIsEditingName(false)} className={secondaryBtn + ' h-11'}>Annuler</button>
+                </form>
+              ) : (
+                <div className="min-w-0">
+                  <h2 id="group-title" className="m-0 font-display font-extrabold text-[28px] leading-tight break-words" style={{ letterSpacing: '-0.02em' }}>{selectedGroup.name}</h2>
+                  <p className="mt-1 mb-0 text-slate-600 dark:text-slate-400">
+                    {[
+                      `${sharedSongs} chanson${sharedSongs > 1 ? 's' : ''} partagée${sharedSongs > 1 ? 's' : ''}`,
+                      setlistCount !== null ? `${setlistCount} setlist${setlistCount > 1 ? 's' : ''}` : null
+                    ].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+              )}
+              {!isEditingName && (
+                <div className="flex gap-1.5">
+                  {isCreator && (
+                    <button type="button" onClick={() => setIsEditingName(true)} className={smallBtn + ' border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:border-slate-500'}>
+                      Renommer
+                    </button>
+                  )}
+                  {!isCreator && myMember && (
+                    <button type="button" onClick={() => leaveGroup(myMember.id)} className={linkDanger}>Quitter le groupe</button>
+                  )}
+                </div>
+              )}
+            </header>
+
+            {message && <p role="status" className={alertCls(message.type)}>{message.text}</p>}
+
+            <div className="flex flex-col">
+              <Eyebrow as="h3" className="mb-2">Membres</Eyebrow>
+              {acceptedMembers.map(member => {
+                const isMe = member.user_id === user.id;
+                const name = member.user?.username || 'Compte sans nom';
+                return (
+                  <div key={member.id} className="flex items-center gap-3 py-3 border-t border-slate-200 dark:border-slate-800">
+                    <Initials name={name} src={member.user?.avatar_url || undefined} size={36} className={isMe ? '' : '!bg-slate-200 dark:!bg-slate-800 dark:!text-slate-100'} />
+                    <span className="flex-1 min-w-0 font-semibold truncate">{name}{isMe && <span className="font-normal text-slate-500 dark:text-slate-400"> (vous)</span>}</span>
+                    {member.role === 'admin' ? (
+                      <span className="text-sm font-semibold px-2 py-0.5 rounded border border-ink dark:border-slate-300">Admin</span>
+                    ) : (
+                      <span className="text-sm font-semibold px-2 py-0.5 rounded bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300">Membre</span>
+                    )}
+                    <span className="w-8 shrink-0">
+                      {isCreator && !isMe && (
+                        <button
+                          type="button"
+                          onClick={() => removeMember(member.id, name, false)}
+                          aria-label={`Retirer ${name}`}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-400"
                         >
-                          <Edit2 size={16} />
+                          <X size={16} />
                         </button>
                       )}
-                    </div>
-                  )}
-                  <p className="text-slate-600 dark:text-slate-400 text-sm">Membres et permissions</p>
-                </div>
-                <div className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-xs text-cyan-600 dark:text-cyan-400 border border-slate-300 dark:border-slate-700">
-                  {groupMembers.length} Members
-                </div>
-              </div>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
 
-              {/* Invite Form */}
-              <div className="mb-8 p-4 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
-                <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
-                  <UserPlus size={16} /> Inviter un membre
-                </h3>
-                <form onSubmit={inviteMember} className="flex gap-2">
-                  <input 
-                    type="text" 
-                    placeholder="Nom d’utilisateur exact…" 
+            <section aria-labelledby="inv-title" className="flex flex-col gap-4 p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950">
+              <Eyebrow as="h3"><span id="inv-title">Inviter des membres</span></Eyebrow>
+              <form onSubmit={inviteMember} className="flex flex-col gap-2">
+                <label htmlFor="invite" className={labelCls}>Nom d'utilisateur</label>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    id="invite"
+                    type="text"
+                    autoComplete="off"
+                    placeholder="Le nom exact affiché sur son profil"
                     value={inviteUsername}
                     onChange={(e) => setInviteUsername(e.target.value)}
-                    className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-400 dark:border-slate-700 rounded-lg px-4 py-2 text-sm text-ink dark:text-white focus:outline-none focus:border-cyan-500"
+                    className={inputCls + ' flex-[1_1_280px] min-w-0'}
                   />
-                  <button 
-                    disabled={actionLoading}
-                    type="submit" 
-                    className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-medium disabled:opacity-50"
-                  >
-                    Inviter
+                  <button type="submit" disabled={actionLoading || !inviteUsername.trim()} className={primaryBtn}>
+                    {actionLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />} Envoyer l'invitation
                   </button>
-                </form>
-                {message && (
-                  <div className={`mt-2 text-xs p-2 rounded ${message.type === 'error' ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'}`}>
-                    {message.text}
-                  </div>
-                )}
-              </div>
+                </div>
+                <span className="text-sm text-slate-500 dark:text-slate-400">La personne doit déjà avoir un compte Unison. Elle verra l'invitation dans ses groupes.</span>
+              </form>
 
-              {/* Member List */}
-              <h3 className="text-sm font-bold text-ink dark:text-white mb-4 uppercase tracking-wider">Membres</h3>
-              <div className="space-y-2">
-                {groupMembers.map(member => {
-                  const isMe = member.user_id === user.id;
-                  const isMemberCreator = member.role === 'admin';
-                  
-                  return (
-                    <div key={member.id} className="flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg group">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400">
-                          {member.user?.avatar_url ? (
-                            <img src={member.user.avatar_url} className="w-full h-full rounded-full" />
-                          ) : (
-                            <Users size={16} />
-                          )}
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium text-ink dark:text-white flex items-center gap-2">
-                            {member.user?.username || 'Unknown'}
-                            {isMe && <span className="text-xs text-slate-500">(vous)</span>}
-                            {member.role === 'admin' && <Shield size={12} className="text-amber-600 dark:text-amber-400" />}
-                          </div>
-                          <div className="text-xs text-slate-500 capitalize">{member.status}</div>
-                        </div>
+              {pendingMembers.length > 0 && (
+                <div className="flex flex-col pt-3 border-t border-slate-200 dark:border-slate-800">
+                  <Eyebrow as="h4" className="mb-1">Invitations envoyées</Eyebrow>
+                  {pendingMembers.map(member => {
+                    const name = member.user?.username || 'Compte sans nom';
+                    return (
+                      <div key={member.id} className="flex flex-wrap items-center gap-3 py-2">
+                        <span className="flex-1 flex flex-col leading-snug min-w-0">
+                          <span className="font-semibold truncate">{name}</span>
+                          <span className="text-sm text-slate-500 dark:text-slate-400">En attente de réponse</span>
+                        </span>
+                        {isCreator && (
+                          <button type="button" onClick={() => removeMember(member.id, name, true)} className="h-8 px-2 text-sm font-semibold text-slate-600 dark:text-slate-400 underline underline-offset-[3px] decoration-1 hover:text-ink dark:hover:text-slate-100">
+                            Annuler
+                          </button>
+                        )}
                       </div>
-                      
-                      <div className="flex items-center gap-2">
-                         {member.status === 'pending' && (
-                           <span className="text-xs text-amber-600 dark:text-amber-400 bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded">Invité</span>
-                         )}
-
-                         {/* Admin Actions: Kick others */}
-                         {isCreator && !isMe && (
-                           <button 
-                             onClick={() => removeMember(member.id, member.user?.username || 'User')}
-                             className="p-2 text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded transition-colors opacity-0 group-hover:opacity-100"
-                             title="Retirer le membre"
-                           >
-                             <Trash2 size={16} />
-                           </button>
-                         )}
-
-                         {/* Member Actions: Leave */}
-                         {!isCreator && isMe && (
-                            <button
-                              onClick={() => leaveGroup(member.id)}
-                              className="p-2 text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded transition-colors"
-                              title="Quitter le groupe"
-                            >
-                              <LogOut size={16} />
-                            </button>
-                         )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center text-slate-500 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/30 dark:bg-slate-900/30">
-              <Users size={48} className="mb-4 opacity-20" />
-              <p>Choisissez un groupe pour voir ses membres</p>
-            </div>
-          )}
-        </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </section>
+        ) : (
+          !loading && (
+            <section className="flex-[999_1_480px] min-w-0 flex flex-col items-start gap-3 p-7 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl">
+              <h2 className="m-0 font-display font-extrabold text-[28px] leading-tight" style={{ letterSpacing: '-0.02em' }}>
+                {groups.length === 0 ? 'Jouez à plusieurs' : 'Choisissez un groupe'}
+              </h2>
+              <p className="m-0 text-slate-600 dark:text-slate-400 max-w-[52ch]">
+                {groups.length === 0
+                  ? 'Créez un groupe pour votre band, votre chorale ou votre duo, puis invitez les membres : chacun retrouve les chansons partagées et les setlists du groupe.'
+                  : 'Ses membres et les invitations s\'affichent ici.'}
+              </p>
+            </section>
+          )
+        )}
       </div>
     </div>
   );

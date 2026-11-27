@@ -43,6 +43,7 @@ export interface Setlist {
   user_id: string;
   group_id?: string | null;
   title: string;
+  icon?: string | null;
   created_at: string;
   mode: 'list' | 'document';
   text_notes?: SetlistTextNote[];

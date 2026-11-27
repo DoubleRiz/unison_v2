@@ -71,7 +71,8 @@ const Profile: React.FC<ProfileProps> = ({ user, songs, groupsCount, theme, onTh
       if (username !== savedName) {
         const { error: metaError } = await supabase.auth.updateUser({ data: { full_name: username } });
         if (metaError) throw metaError;
-        await supabase.from('users').update({ username }).eq('id', user.id);
+        const { error: userError } = await supabase.from('users').update({ username }).eq('id', user.id);
+        if (userError) throw userError;
         setSavedName(username);
       }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { Comment } from '../types';
 import { User, Send, Trash2, MessageSquare } from 'lucide-react';
+import { notifyError } from './ui/Toast';
 
 interface CommentsSectionProps {
   songId: string;
@@ -52,7 +53,10 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ songId, session, onOp
       .select('*, user:users(username, avatar_url)')
       .single();
 
-    if (!error && data) {
+    if (error || !data) {
+      // Le texte reste dans le champ pour pouvoir réessayer.
+      notifyError('Impossible de publier le commentaire.', error ?? undefined);
+    } else {
       setComments([...comments, data]);
       setNewComment('');
     }
@@ -65,9 +69,11 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ songId, session, onOp
       .delete()
       .eq('id', commentId);
 
-    if (!error) {
-      setComments(comments.filter(c => c.id !== commentId));
+    if (error) {
+      notifyError('Impossible de supprimer le commentaire.', error);
+      return;
     }
+    setComments(comments.filter(c => c.id !== commentId));
   };
 
   const formatDate = (dateString: string) => {

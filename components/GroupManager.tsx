@@ -5,6 +5,7 @@ import { Loader2, Send, X } from 'lucide-react';
 import { Eyebrow, Initials } from './ui/Brand';
 import { Modal } from './ui/Modal';
 import { alertCls, inputCls, labelCls, secondaryBtn } from './ui/styles';
+import { notifyError, errorMessage, UserFacingError } from './ui/Toast';
 
 interface GroupManagerProps {
   user: any;
@@ -162,7 +163,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, songs = [] }) => {
       await fetchData(groupData.id);
       flash(setCreateMessage, 'success', 'Groupe créé.');
     } catch (error: any) {
-      flash(setCreateMessage, 'error', error.message);
+      console.error(error);
+      flash(setCreateMessage, 'error', errorMessage('Impossible de créer le groupe.', error));
     } finally {
       setActionLoading(false);
     }
@@ -182,11 +184,11 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, songs = [] }) => {
         .eq('username', username)
         .single();
 
-      if (userError || !foundUser) throw new Error(`Aucun compte ne porte le nom « ${username} ».`);
+      if (userError || !foundUser) throw new UserFacingError(`Aucun compte ne porte le nom « ${username} ».`);
 
       const existing = groupMembers.find(m => m.user_id === foundUser.id);
       if (existing) {
-        throw new Error(existing.status === 'pending' ? `${username} a déjà une invitation en attente.` : `${username} fait déjà partie du groupe.`);
+        throw new UserFacingError(existing.status === 'pending' ? `${username} a déjà une invitation en attente.` : `${username} fait déjà partie du groupe.`);
       }
 
       const { error: inviteError } = await supabase
@@ -204,7 +206,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, songs = [] }) => {
       fetchGroupMembers(selectedGroup.id);
       flash(setMessage, 'success', `Invitation envoyée à ${username}.`);
     } catch (error: any) {
-      flash(setMessage, 'error', error.message);
+      console.error(error);
+      flash(setMessage, 'error', errorMessage('Impossible d\'envoyer l\'invitation.', error));
     } finally {
       setActionLoading(false);
     }
@@ -213,14 +216,13 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, songs = [] }) => {
   const handleInvitation = async (memberId: string, accept: boolean, groupId?: string) => {
     setActionLoading(true);
     try {
-      if (accept) {
-        await supabase.from('group_members').update({ status: 'accepted' }).eq('id', memberId);
-      } else {
-        await supabase.from('group_members').delete().eq('id', memberId);
-      }
+      const { error } = accept
+        ? await supabase.from('group_members').update({ status: 'accepted' }).eq('id', memberId)
+        : await supabase.from('group_members').delete().eq('id', memberId);
+      if (error) throw error;
       await fetchData(accept ? groupId : undefined);
     } catch (error) {
-      console.error(error);
+      notifyError(accept ? 'Impossible d\'accepter l\'invitation.' : 'Impossible de refuser l\'invitation.', error);
     } finally {
       setActionLoading(false);
     }
@@ -240,7 +242,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, songs = [] }) => {
       setIsEditingName(false);
       flash(setMessage, 'success', 'Groupe renommé.');
     } catch (error: any) {
-      flash(setMessage, 'error', error.message);
+      console.error(error);
+      flash(setMessage, 'error', errorMessage('Impossible de renommer le groupe.', error));
     } finally {
       setActionLoading(false);
     }
@@ -288,7 +291,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, songs = [] }) => {
       setConfirm(null);
     } catch (error: any) {
       setConfirm(null);
-      flash(setMessage, 'error', error.message);
+      console.error(error);
+      flash(setMessage, 'error', errorMessage('L\'action a échoué.', error));
     } finally {
       setActionLoading(false);
     }

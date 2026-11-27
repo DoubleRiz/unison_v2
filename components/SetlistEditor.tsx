@@ -35,6 +35,7 @@ import { KeyBadge } from './ui/Brand';
 import { Segmented } from './ui/Segmented';
 import { Modal } from './ui/Modal';
 import { inputCls, labelCls, secondaryBtn } from './ui/styles';
+import { notifyError } from './ui/Toast';
 import { DEFAULT_SETLIST_ICON, getSetlistIcon } from '../constants/setlistIcons';
 import { SetlistIconPicker } from './SetlistIconPicker';
 
@@ -115,11 +116,14 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
     setEditingTextSize(item.size);
   };
 
-  const saveTextNote = () => {
+  const saveTextNote = async () => {
     if (!editingTextValue.trim() || !currentSetlist || currentSetlist.id === FAVORITES_ID) {
       setEditingTextId(null);
       return;
     }
+    const prevItems = setlistItems;
+    const prevEditingId = editingTextId;
+    let newItems: SetlistItem[];
 
     if (editingTextId === 'new') {
       const newNote: TextItem = {
@@ -129,19 +133,21 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
         color: editingTextColor,
         size: editingTextSize
       };
-      const newItems = [...setlistItems, newNote];
-      setSetlistItems(newItems);
-      persistTextNotes(newItems);
+      newItems = [...setlistItems, newNote];
     } else {
-      const newItems = setlistItems.map(item =>
+      newItems = setlistItems.map(item =>
         item.id === editingTextId && item.type === 'text'
           ? { ...item, content: editingTextValue.trim(), color: editingTextColor, size: editingTextSize }
           : item
       );
-      setSetlistItems(newItems);
-      persistTextNotes(newItems);
     }
+    setSetlistItems(newItems);
     setEditingTextId(null);
+    if (!(await persistTextNotes(newItems))) {
+      // Échec : on rouvre l'édition avec le texte saisi pour pouvoir réessayer.
+      setSetlistItems(prevItems);
+      setEditingTextId(prevEditingId);
+    }
   };
 
   const [notationMode, setNotationMode] = useState<NotationMode>(NotationMode.LETTERS);
@@ -205,14 +211,11 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
   // ── Data fetching ────────────────────────────────────────────────────────
   const fetchSetlists = async () => {
     setLoading(true);
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from('setlists')
       .select('*, setlist_songs(count)')
       .order('created_at', { ascending: false });
-    if (error) {
-      // Fallback if the embedded count is not available on this schema.
-      ({ data, error } = await supabase.from('setlists').select('*').order('created_at', { ascending: false }));
-    }
+    if (error) console.error('Error fetching setlists:', error);
     if (!error && data) {
       setSetlists(data.map((s: any) => {
         const { setlist_songs, ...rest } = s;
@@ -283,8 +286,8 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
   }, [setlistItems, setlistItemsLoadedFor, currentSetlist?.id]);
 
   // ── Text notes persistence ───────────────────────────────────────────────
-  const persistTextNotes = async (items: SetlistItem[]) => {
-    if (!currentSetlist) return;
+  const persistTextNotes = async (items: SetlistItem[]): Promise<boolean> => {
+    if (!currentSetlist) return false;
     const textNotes: SetlistTextNote[] = items
       .map((item, index) => ({ item, index }))
       .filter(({ item }) => item.type === 'text')
@@ -292,8 +295,13 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
         const t = item as TextItem;
         return { id: t.id, content: t.content, color: t.color, size: t.size, position: index };
       });
-    await supabase.from('setlists').update({ text_notes: textNotes }).eq('id', currentSetlist.id);
+    const { error } = await supabase.from('setlists').update({ text_notes: textNotes }).eq('id', currentSetlist.id);
+    if (error) {
+      notifyError('Impossible d\'enregistrer les notes de la setlist.', error);
+      return false;
+    }
     setCurrentSetlist({ ...currentSetlist, text_notes: textNotes });
+    return true;
   };
 
   // ── Setlist CRUD ─────────────────────────────────────────────────────────
@@ -310,26 +318,23 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
     if (!newTitle.trim()) return;
     const payload: any = { title: newTitle.trim(), user_id: user.id, mode: newSetlistMode, icon: newIcon };
     if (selectedGroupId) payload.group_id = selectedGroupId;
-    let { data, error } = await supabase.from('setlists').insert([payload]).select().single();
-    if (error && /icon/.test(error.message)) {
-      // Colonne `icon` pas encore migrée : on crée la setlist sans icône.
-      const { icon: _icon, ...rest } = payload;
-      ({ data, error } = await supabase.from('setlists').insert([rest]).select().single());
+    const { data, error } = await supabase.from('setlists').insert([payload]).select().single();
+    if (error || !data) {
+      // La modale reste ouverte : le titre saisi n'est pas perdu.
+      notifyError('Impossible de créer la setlist.', error ?? undefined);
+      return;
     }
-    if (!error && data) {
-      setSetlists([{ ...data, song_count: 0 }, ...setlists]);
-      setShowCreateModal(false);
-      handleSelectSetlist(data);
-    }
+    setSetlists([{ ...data, song_count: 0 }, ...setlists]);
+    setShowCreateModal(false);
+    handleSelectSetlist(data);
   };
 
   const handleUpdateSetlistIcon = async (id: string, icon: string) => {
     setIconError(null);
     const { error } = await supabase.from('setlists').update({ icon }).eq('id', id);
     if (error) {
-      setIconError(/icon/.test(error.message)
-        ? 'La colonne « icon » n\'existe pas encore en base : appliquez la migration.'
-        : 'Impossible d\'enregistrer l\'icône.');
+      console.error('Error updating setlist icon:', error);
+      setIconError('Impossible d\'enregistrer l\'icône.');
       return;
     }
     setSetlists(prev => prev.map(s => s.id === id ? { ...s, icon } : s));
@@ -347,11 +352,13 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
       .update({ title })
       .eq('id', currentSetlist.id);
 
-    if (!error) {
-      setCurrentSetlist({ ...currentSetlist, title });
-      setSetlists(setlists.map(s => s.id === currentSetlist.id ? { ...s, title } : s));
-      setShowRenameModal(false);
+    if (error) {
+      notifyError('Impossible de renommer la setlist.', error);
+      return;
     }
+    setCurrentSetlist({ ...currentSetlist, title });
+    setSetlists(setlists.map(s => s.id === currentSetlist.id ? { ...s, title } : s));
+    setShowRenameModal(false);
   };
 
   const confirmDuplicateSetlist = (id: string, e?: React.MouseEvent) => {
@@ -384,16 +391,19 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
       .select()
       .single();
 
-    if (!error && newSetlist) {
-      const { data: originalSongs } = await supabase
+    if (error || !newSetlist) {
+      notifyError('Impossible de dupliquer la setlist.', error ?? undefined);
+    } else {
+      const { data: originalSongs, error: readError } = await supabase
         .from('setlist_songs')
         .select('id, song_id, position, transpose')
         .eq('setlist_id', original.id)
         .order('position', { ascending: true });
 
+      let copyFailed = !!readError;
       let idMap = new Map<string, string>();
       if (originalSongs && originalSongs.length > 0) {
-        const { data: insertedSongs } = await supabase
+        const { data: insertedSongs, error: insertError } = await supabase
           .from('setlist_songs')
           .insert(
             originalSongs.map(s => ({
@@ -406,6 +416,7 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
           .select('id, song_id, position, transpose')
           .order('position', { ascending: true });
 
+        if (insertError) copyFailed = true;
         idMap = new Map(
           originalSongs.map((s, index) => [s.id, insertedSongs?.[index]?.id]).filter(([, v]) => v) as [string, string][]
         );
@@ -420,8 +431,12 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
               : node
           ),
         };
-        await supabase.from('setlists').update({ layout_document: remapped }).eq('id', newSetlist.id);
-        newSetlist.layout_document = remapped;
+        const { error: layoutError } = await supabase.from('setlists').update({ layout_document: remapped }).eq('id', newSetlist.id);
+        if (layoutError) copyFailed = true;
+        else newSetlist.layout_document = remapped;
+      }
+      if (copyFailed) {
+        notifyError('La copie a été créée, mais certains morceaux ou la mise en page n\'ont pas pu être copiés.');
       }
 
       setSetlists([{ ...newSetlist, song_count: originalSongs?.length ?? 0 }, ...setlists]);
@@ -442,7 +457,13 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
   const executeDeleteSetlist = async () => {
     if (!setlistToDelete) return;
 
-    await supabase.from('setlists').delete().eq('id', setlistToDelete);
+    const { error } = await supabase.from('setlists').delete().eq('id', setlistToDelete);
+    if (error) {
+      notifyError('Impossible de supprimer la setlist.', error);
+      setShowDeleteModal(false);
+      setSetlistToDelete(null);
+      return;
+    }
     setSetlists(setlists.filter(s => s.id !== setlistToDelete));
     if (currentSetlist?.id === setlistToDelete) setCurrentSetlist(null);
     setShowDeleteModal(false);
@@ -478,10 +499,12 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
     const { data, error } = await supabase.from('setlist_songs')
       .insert({ setlist_id: currentSetlist.id, song_id: song.id, position: setlistItems.length, transpose: 0 })
       .select().single();
-    if (!error && data) {
-      const newItems = [...setlistItems, { type: 'song' as const, id: data.id, song, transpose: 0 }];
-      setSetlistItems(newItems);
+    if (error || !data) {
+      notifyError(`Impossible d'ajouter « ${song.title} » à la setlist.`, error ?? undefined);
+      return;
     }
+    const newItems = [...setlistItems, { type: 'song' as const, id: data.id, song, transpose: 0 }];
+    setSetlistItems(newItems);
   };
 
   const removeItemFromSetlist = async (itemId: string) => {
@@ -491,23 +514,34 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
     const newItems = setlistItems.filter(s => s.id !== itemId);
     setSetlistItems(newItems);
 
+    const prevItems = setlistItems;
     if (item?.type === 'song') {
-      await supabase.from('setlist_songs').delete().eq('id', itemId);
+      const { error } = await supabase.from('setlist_songs').delete().eq('id', itemId);
+      if (error) {
+        notifyError('Impossible de retirer le morceau de la setlist.', error);
+        setSetlistItems(prevItems);
+      }
     } else if (item?.type === 'text') {
-      await persistTextNotes(newItems);
+      if (!(await persistTextNotes(newItems))) setSetlistItems(prevItems);
     }
   };
 
   const updateItemTranspose = async (itemId: string, newTranspose: number) => {
-    setSetlistItems(items => items.map(item =>
-      item.id === itemId ? { ...item, transpose: newTranspose } : item
+    const previous = setlistItems.find(item => item.id === itemId);
+    const setTranspose = (value: number) => setSetlistItems(items => items.map(item =>
+      item.id === itemId ? { ...item, transpose: value } : item
     ));
+    setTranspose(newTranspose);
 
     if (currentSetlist?.id !== FAVORITES_ID) {
-      await supabase
+      const { error } = await supabase
         .from('setlist_songs')
         .update({ transpose: newTranspose })
         .eq('id', itemId);
+      if (error) {
+        notifyError('Impossible d\'enregistrer la transposition.', error);
+        if (previous?.type === 'song') setTranspose(previous.transpose);
+      }
     }
   };
 
@@ -522,7 +556,8 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
     dragOverItem.current = position;
   };
 
-  const updateAllPositions = async (items: SetlistItem[]) => {
+  /** Enregistre l'ordre ; en cas d'échec, revient à `previous`. */
+  const updateAllPositions = async (items: SetlistItem[], previous: SetlistItem[]) => {
     if (!currentSetlist) return;
     const songUpdates = items
       .map((item, index) => ({ item, index }))
@@ -538,9 +573,17 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
         };
       });
 
-    await persistTextNotes(items);
+    if (!(await persistTextNotes(items))) {
+      setSetlistItems(previous);
+      return;
+    }
     if (songUpdates.length > 0) {
-      await supabase.from('setlist_songs').upsert(songUpdates);
+      const { error } = await supabase.from('setlist_songs').upsert(songUpdates);
+      if (error) {
+        notifyError('Impossible d\'enregistrer le nouvel ordre de la setlist.', error);
+        setSetlistItems(previous);
+        await persistTextNotes(previous);
+      }
     }
   };
 
@@ -554,8 +597,9 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
       .filter((item): item is SongItem => item !== undefined);
 
     const newItems: SetlistItem[] = [...reorderedSongs, ...textItems];
+    const previous = setlistItems;
     setSetlistItems(newItems);
-    await updateAllPositions(newItems);
+    await updateAllPositions(newItems, previous);
   };
 
   const handleDocumentSongInserted = (newItem: SongItem) => {
@@ -579,8 +623,9 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
 
     dragItem.current = null;
     dragOverItem.current = null;
+    const previous = setlistItems;
     setSetlistItems(newItems);
-    await updateAllPositions(newItems);
+    await updateAllPositions(newItems, previous);
   };
 
   const moveItem = async (fromIndex: number, toIndex: number) => {
@@ -589,8 +634,9 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
     const item = newItems[fromIndex];
     newItems.splice(fromIndex, 1);
     newItems.splice(toIndex, 0, item);
+    const previous = setlistItems;
     setSetlistItems(newItems);
-    await updateAllPositions(newItems);
+    await updateAllPositions(newItems, previous);
   };
 
   const startPerformance = () => {

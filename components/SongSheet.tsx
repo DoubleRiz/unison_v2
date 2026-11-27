@@ -2,7 +2,10 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Song, NotationMode } from '../types';
 import { transpose, convertToDegree, getSectionType, transposeContent } from '../utils/musicLogic';
-import { Music2, Heart, Trash2, AlertTriangle, Edit3, ZoomIn, ZoomOut, Mic, MicOff, Play, Pause, GitBranch, Shield, FileDown, StickyNote, ChevronDown, ChevronUp, FastForward, Rewind, Hash, Type } from 'lucide-react';
+import { Heart, Trash2, AlertTriangle, Pencil, ZoomIn, ZoomOut, Play, Pause, Download, ChevronDown, ChevronUp } from 'lucide-react';
+import ChordVisualizer from './ChordVisualizer';
+import { GUITAR_DATA } from '../constants/chordShapes';
+import { KeyBadge } from './ui/Brand';
 import CommentsSection from './CommentsSection';
 import ChordTooltip from './ChordTooltip';
 import { jsPDF } from 'jspdf';
@@ -18,6 +21,10 @@ interface SongSheetProps {
   onOpenAuth?: () => void;
   onEdit?: () => void;
   onDelete?: (id: string) => void;
+  onTransposeChange?: (delta: number) => void;
+  onTransposeReset?: () => void;
+  onNotationModeChange?: (mode: NotationMode) => void;
+  onBack?: () => void;
 }
 
 const SongSheet: React.FC<SongSheetProps> = ({ 
@@ -30,7 +37,11 @@ const SongSheet: React.FC<SongSheetProps> = ({
   isAdmin = false,
   onOpenAuth,
   onEdit,
-  onDelete
+  onDelete,
+  onTransposeChange,
+  onTransposeReset,
+  onNotationModeChange,
+  onBack
 }) => {
   const [isFavorite, setIsFavorite] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -38,7 +49,7 @@ const SongSheet: React.FC<SongSheetProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   
   // View Settings
-  const [fontSize, setFontSize] = useState(1.125); 
+  const [fontSize, setFontSize] = useState(1.25); 
   const [showChords, setShowChords] = useState(true);
   const [isPinching, setIsPinching] = useState(false);
 
@@ -248,7 +259,7 @@ const SongSheet: React.FC<SongSheetProps> = ({
       if (match) {
         content = (
           <>
-            <span className="text-fuchsia-600 dark:text-fuchsia-400">{match[1]}</span>
+            <span className="text-violet-600 dark:text-violet-400">{match[1]}</span>
             <span className="text-cyan-600 dark:text-cyan-400">{match[2]}</span>
           </>
         );
@@ -258,7 +269,7 @@ const SongSheet: React.FC<SongSheetProps> = ({
     const shapeChordName = originalChord ? transpose(originalChord, transposeSemitones) : chordString;
 
     return (
-      <span className={`whitespace-pre cursor-default font-bold ${!isDegree ? 'text-cyan-600 dark:text-cyan-400' : ''}`}>
+      <span className={`whitespace-pre cursor-default font-bold font-mono ${!isDegree ? 'text-cyan-600 dark:text-cyan-400' : ''}`}>
         {content}
       </span>
     );
@@ -268,7 +279,7 @@ const SongSheet: React.FC<SongSheetProps> = ({
     const parts = text.split(/(\*.*?\*|\(.*?\))/g);
     return parts.map((part, i) => {
       if (part.startsWith('*') && part.endsWith('*')) {
-        return <i key={i} className="text-slate-500 dark:text-slate-400">{part.slice(1, -1)}</i>;
+        return <i key={i} className="text-slate-600 dark:text-slate-400">{part.slice(1, -1)}</i>;
       }
       if (part.startsWith('(') && part.endsWith(')')) {
         return <span key={i} className="text-slate-500 text-[0.9em]">{part}</span>;
@@ -329,7 +340,7 @@ const SongSheet: React.FC<SongSheetProps> = ({
         const isChord = i % 2 === 1;
         if (isChord) {
           doc.setFont("courier", "bold");
-          doc.setTextColor(0, 153, 184); // Cyan
+          doc.setTextColor(36, 64, 214); // Unison blue
         } else {
           doc.setFont("courier", "normal");
           doc.setTextColor(0, 0, 0); // Black
@@ -347,199 +358,311 @@ const SongSheet: React.FC<SongSheetProps> = ({
     doc.save(`${song.title}.pdf`);
   };
 
+  // Unique chords of the song (transposed), for the diagrams aside.
+  const songChords = useMemo(() => {
+    const found: string[] = [];
+    const re = /\[(.*?)\]/g;
+    let m: RegExpExecArray | null;
+    for (const line of song.content.split('\n')) {
+      if (getSectionType(line)) continue;
+      while ((m = re.exec(line)) !== null) {
+        const c = transpose(m[1], transposeSemitones);
+        if (c && !found.includes(c)) found.push(c);
+      }
+    }
+    return found;
+  }, [song.content, transposeSemitones]);
+  const chordsWithShape = songChords.filter(c => GUITAR_DATA[c.split('/')[0]]);
+
+  const isDegrees = notationMode === NotationMode.DEGREES;
+  const displayKey = song.key ? (isDegrees ? `I = ${transpose(song.key, transposeSemitones)}` : transpose(song.key, transposeSemitones)) : null;
+  const semiLabel = transposeSemitones === 0
+    ? (song.key || '0')
+    : `${song.key ? song.key + ' → ' + transpose(song.key, transposeSemitones) : (transposeSemitones > 0 ? '+' : '') + transposeSemitones}`;
+
+  let sectionIndex = 0;
+  // Songs written with chord-only lines above the lyrics need a monospaced face to stay aligned;
+  // songs with inline [chords] can use the reading face, chords stacked above each syllable.
+  const usesChordLines = parsedLines.some(l => !l.isSection && isChordLine(l.segments));
+  const lyricsFont = usesChordLines ? '' : 'font-sans';
+
+  const toolBtn = 'inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm font-semibold hover:border-slate-500 dark:hover:border-slate-500 transition-colors';
+  const segBtn = (on: boolean) => `h-8 px-3 rounded text-sm font-semibold transition-colors ${on ? 'bg-cyan-100 text-cyan-700 shadow-[inset_0_-2px_0_#2440D6] dark:bg-cyan-900 dark:text-cyan-300 dark:shadow-[inset_0_-2px_0_#93A5FF]' : 'text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-slate-100'}`;
+
   return (
-    <div ref={containerRef} className={`max-w-4xl mx-auto ${className}`}>
+    <div ref={containerRef} className={`${className}`}>
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
-            <div className="flex flex-col items-center text-center mb-6">
-              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-500 rounded-full flex items-center justify-center mb-4">
-                <AlertTriangle size={24} />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Delete Song?</h3>
-              <p className="text-slate-600 dark:text-slate-400 text-sm">Are you sure you want to delete <span className="text-slate-900 dark:text-white font-medium">"{song.title}"</span>?</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-title">
+          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl flex flex-col gap-4">
+            <span className="w-12 h-12 bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-400 rounded-xl flex items-center justify-center">
+              <AlertTriangle size={22} />
+            </span>
+            <div>
+              <h3 id="delete-title" className="m-0 font-display font-extrabold text-2xl">Supprimer la chanson ?</h3>
+              <p className="mt-2 mb-0 text-slate-600 dark:text-slate-400">« {song.title} » sera définitivement supprimée.</p>
             </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-lg font-medium">Cancel</button>
-              <button onClick={() => { if (onDelete) onDelete(song.id); setShowDeleteConfirm(false); }} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-medium">Delete</button>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowDeleteConfirm(false)} className="flex-1 h-11 rounded-md border border-slate-300 dark:border-slate-700 font-semibold">Annuler</button>
+              <button type="button" onClick={() => { if (onDelete) onDelete(song.id); setShowDeleteConfirm(false); }} className="flex-1 h-11 rounded-md bg-red-600 text-white font-semibold">Supprimer</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Auto Scroll Floating Controls */}
-      <div className="fixed bottom-24 right-6 md:bottom-10 md:right-10 z-40 flex flex-col items-end gap-3 scale-90 md:scale-100">
-        {isScrolling && (
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-3 shadow-xl animate-in slide-in-from-bottom-2 duration-300 min-w-[200px]">
-             <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Scroll Level</div>
-                  <div className="text-xs font-mono font-bold text-cyan-500 bg-cyan-500/10 px-2 py-0.5 rounded">Lvl {scrollSpeed}</div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input 
-                    type="range" 
-                    min="1" 
-                    max="7" 
-                    step="1" 
-                    value={scrollSpeed} 
-                    onChange={(e) => setScrollSpeed(parseInt(e.target.value))}
-                    className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-600"
-                  />
-                </div>
-             </div>
+      {/* Auto-scroll speed panel (visible while scrolling) */}
+      {isScrolling && (
+        <div className="fixed bottom-24 right-4 md:bottom-8 md:right-8 z-40 bg-stage text-[#ECEDE9] border border-[#2A2E36] rounded-xl p-4 shadow-2xl min-w-[240px] flex flex-col gap-3">
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-semibold uppercase text-[#A8ACB5]" style={{ letterSpacing: '0.08em' }}>Vitesse</span>
+            <span className="font-mono font-bold text-[#93A5FF]">{scrollSpeed} / 7</span>
           </div>
-        )}
-        
-        <button 
-          onClick={() => setIsScrolling(!isScrolling)} 
-          className={`h-16 w-16 rounded-full shadow-2xl flex items-center justify-center transition-all border-4 ${isScrolling ? 'bg-cyan-600 text-white border-cyan-400 scale-110' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-transparent hover:border-slate-200 dark:hover:border-slate-600'}`}
-        >
-           {isScrolling ? (
-             <div className="relative">
-               <Pause size={32} />
-               <div className="absolute -inset-4 bg-cyan-400/20 rounded-full animate-ping"></div>
-             </div>
-           ) : (
-             <Play size={32} fill="currentColor" />
-           )}
-        </button>
-      </div>
-
-      {/* Header */}
-      <div className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-6">
-        <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-4">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white mb-2 tracking-tight leading-tight">{song.title}</h1>
-            <div className="text-2xl md:text-3xl font-bold text-cyan-600 dark:text-cyan-500 mb-4">{song.artist}</div>
-            <div className="flex items-center gap-4 text-slate-500 dark:text-slate-400 text-sm font-bold uppercase tracking-widest">
-                <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700">
-                  {notationMode === NotationMode.LETTERS ? transpose(song.key, transposeSemitones) : '1'}
-                </span>
-                {song.bpm && <span>{song.bpm} BPM</span>}
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2 shrink-0 self-end md:self-start">
-            {canEdit && onDelete && (
-              <button onClick={() => setShowDeleteConfirm(true)} className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-red-500 border border-slate-200 dark:border-slate-700"><Trash2 size={20} /></button>
-            )}
-            {onEdit && (canEdit || song.shared_with_group_id) && (
-              <button onClick={onEdit} className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-cyan-600 border border-slate-200 dark:border-slate-700"><Edit3 size={20} /></button>
-            )}
-            {session && (
-              <button onClick={toggleFavorite} className={`p-3 rounded-xl border transition-all ${isFavorite ? 'bg-pink-100 dark:bg-pink-500/20 text-pink-500 border-pink-200 dark:border-pink-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700'}`}>
-                <Heart size={20} fill={isFavorite ? "currentColor" : "none"} />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* View Controls Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-100 dark:bg-slate-900/50 p-3 rounded-2xl border border-slate-200 dark:border-slate-800/50 shadow-sm">
-          <div className="flex items-center gap-2">
-            <button onClick={() => adjustFontSize(-0.1)} className="p-2 text-slate-500 hover:text-slate-900 dark:hover:text-white"><ZoomOut size={18} /></button>
-            <span className="text-xs text-slate-500 font-mono w-10 text-center">{Math.round(fontSize * 16)}px</span>
-            <button onClick={() => adjustFontSize(0.1)} className="p-2 text-slate-500 hover:text-slate-900 dark:hover:text-white"><ZoomIn size={18} /></button>
-            <div className="w-px h-6 bg-slate-300 dark:bg-slate-800 mx-2"></div>
-            <button onClick={() => setShowChords(!showChords)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!showChords ? 'bg-purple-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
-              {!showChords ? <Mic size={14} /> : <MicOff size={14} />} {showChords ? 'Hide Chords' : 'Lyrics Only'}
-            </button>
-          </div>
-          <button onClick={handleExportPDF} className="flex items-center gap-2 px-4 py-2 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors"><FileDown size={14} /> EXPORT PDF</button>
-        </div>
-      </div>
-
-      {/* YouTube Embed */}
-      {song.youtubeUrl && getYoutubeEmbedUrl(song.youtubeUrl) && (
-        <div className="mb-8">
-          <button
-            onClick={() => setShowVideo(v => !v)}
-            className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors mb-2"
-          >
-            {showVideo ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            {showVideo ? 'Masquer la vidéo' : 'Afficher la vidéo'}
+          <input
+            type="range"
+            min="1"
+            max="7"
+            step="1"
+            value={scrollSpeed}
+            aria-label="Vitesse de défilement"
+            onChange={(e) => setScrollSpeed(parseInt(e.target.value))}
+            className="w-full accent-[#FF6B54]"
+          />
+          <button type="button" onClick={() => setIsScrolling(false)} className="inline-flex items-center justify-center gap-2 h-11 rounded-md bg-[#FF6B54] text-stage font-bold">
+            <Pause size={16} fill="currentColor" /> Arrêter
           </button>
-          {showVideo && (
-            <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
-              <iframe
-                className="absolute inset-0 w-full h-full rounded-xl border border-slate-200 dark:border-slate-800"
-                src={getYoutubeEmbedUrl(song.youtubeUrl)!}
-                title={`${song.title} - ${song.artist}`}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
+        </div>
+      )}
+
+      {/* Top bar: breadcrumb + actions */}
+      <div className="flex flex-wrap items-center gap-3 px-4 md:px-8 py-3 border-b border-slate-200 dark:border-slate-800 text-sm">
+        <nav aria-label="Fil d'Ariane" className="flex-1 min-w-0 truncate text-slate-500">
+          {onBack ? (
+            <button type="button" onClick={onBack} className="text-slate-600 dark:text-slate-400 underline underline-offset-[3px] decoration-1">Bibliothèque</button>
+          ) : (
+            <span>Bibliothèque</span>
+          )}
+          <span aria-hidden="true"> / </span>
+          <span className="text-ink dark:text-slate-100 font-semibold">{song.title}</span>
+        </nav>
+        <div className="flex items-center gap-1">
+          {session && (
+            <button
+              type="button"
+              onClick={toggleFavorite}
+              aria-label={isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+              aria-pressed={isFavorite}
+              className={`w-9 h-9 inline-flex items-center justify-center rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 ${isFavorite ? 'text-ink dark:text-slate-100' : 'text-slate-500'}`}
+            >
+              <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} />
+            </button>
+          )}
+          {onEdit && (canEdit || song.shared_with_group_id) && (
+            <button type="button" onClick={onEdit} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
+              <Pencil size={16} /> Modifier
+            </button>
+          )}
+          <button type="button" onClick={handleExportPDF} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
+            <Download size={16} /> PDF
+          </button>
+          {canEdit && onDelete && (
+            <button type="button" onClick={() => setShowDeleteConfirm(true)} aria-label="Supprimer la chanson" className="w-9 h-9 inline-flex items-center justify-center rounded-md text-slate-600 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900 hover:text-red-700 dark:hover:text-red-400">
+              <Trash2 size={16} />
+            </button>
           )}
         </div>
-      )}
-
-      {/* Sheet Music Area */}
-      <div className={`font-mono select-text transition-all ${isPinching ? 'duration-0' : 'duration-200'}`} style={{ fontSize: `${fontSize}rem` }}>
-        {parsedLines.map((lineObj, lineIdx) => {
-          if (lineObj.isSection) {
-            return (
-              <div key={lineIdx} className="mt-10 mb-6">
-                 <span className="inline-block px-3 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-cyan-700 dark:text-cyan-400 text-sm font-black uppercase tracking-[0.2em] shadow-sm">
-                   {lineObj.text}
-                 </span>
-              </div>
-            );
-          }
-          const line = lineObj.segments;
-          const isCurrentLineChords = isChordLine(line);
-          const lineHasAnyChord = line.some(s => s.chord !== null);
-          if (!showChords && isCurrentLineChords) return null;
-
-          return (
-            <div key={lineIdx} 
-              className={`flex flex-row flex-nowrap items-end overflow-x-auto whitespace-nowrap ${isCurrentLineChords && showChords ? 'mb-0' : 'mb-2'}`}
-              style={{ display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'flex-end', minHeight: '1.2em' }}
-            >
-              {line.length === 0 || (line.length === 1 && !line[0].chord && !line[0].lyrics) ? (
-                <div className="h-6 w-full"></div>
-              ) : (
-                line.map((segment, segIdx) => {
-                  const chordString = processChord(segment.chord);
-                  const segmentStyle = { flexShrink: 0, flexBasis: 'auto', minWidth: isCurrentLineChords ? `${segment.span}ch` : 'auto' };
-                  
-                  if (isCurrentLineChords) {
-                    return (
-                      <div key={segIdx} className="flex flex-row flex-nowrap flex-shrink-0" style={segmentStyle}>
-                        {chordString && showChords && (
-                          <ChordTooltip chord={chordString}>
-                            {renderChordDisplay(chordString, segment.chord)}
-                          </ChordTooltip>
-                        )}
-                        <span className="whitespace-pre text-slate-500">{segment.lyrics}</span>
-                      </div>
-                    );
-                  }
-
-                  // Inline Rendering for mixed lines
-                  return (
-                    <div key={segIdx} className="flex flex-row items-baseline flex-shrink-0" style={segmentStyle}>
-                      {chordString && showChords && (
-                        <span className="font-bold text-cyan-600 dark:text-cyan-400 mr-1 select-none">
-                          <ChordTooltip chord={chordString}>
-                            {renderChordDisplay(chordString, segment.chord)}
-                          </ChordTooltip>
-                        </span>
-                      )}
-                      <span className="text-slate-800 dark:text-slate-300 whitespace-pre">
-                        {renderStyledText(segment.lyrics)}
-                      </span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          );
-        })}
       </div>
 
-      <CommentsSection songId={song.id} session={session} onOpenAuth={onOpenAuth || (() => {})} />
+      <div className="max-w-[1120px] mx-auto px-4 md:px-8 py-6 md:py-8 flex flex-wrap gap-12 items-start">
+        <article className="flex-[999_1_520px] min-w-0 flex flex-col gap-7">
+          <header className="flex flex-col gap-3.5">
+            <h1 className="m-0 font-display font-extrabold text-[32px] md:text-[36px] leading-[1.02]" style={{ letterSpacing: '-0.03em' }}>{song.title}</h1>
+            <p className="m-0 text-lg text-slate-600 dark:text-slate-400">{song.artist}</p>
+            <div className="flex flex-wrap gap-2 items-center text-sm">
+              {displayKey && <KeyBadge size="md" outlined>{displayKey}</KeyBadge>}
+              {song.bpm && <span className="font-mono font-medium text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded px-2 py-0.5">{song.bpm} bpm</span>}
+              {song.genres && song.genres.length > 0 && <span className="text-slate-600 dark:text-slate-400 px-1 py-0.5">{song.genres.join(' · ')}</span>}
+              {song.tags && song.tags.length > 0 && <span className="text-slate-600 dark:text-slate-400 px-1 py-0.5">{song.tags.map(t => `#${t}`).join(' ')}</span>}
+              {song.shared_with_group_id && <span className="text-slate-600 dark:text-slate-400 px-1 py-0.5">Partagée avec un groupe</span>}
+            </div>
+          </header>
+
+          {/* Reading settings toolbar */}
+          <div role="toolbar" aria-label="Réglages de lecture" className="flex flex-wrap gap-2 items-center p-3 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl">
+            {onTransposeChange && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400" style={{ letterSpacing: '0.08em' }}>Ton</span>
+                <div
+                  className={`inline-flex items-center border border-slate-300 dark:border-slate-700 rounded-md bg-slate-50 dark:bg-slate-900 ${isDegrees ? 'opacity-45' : ''}`}
+                  title={isDegrees ? 'Sans effet en mode Degrés' : undefined}
+                  style={isDegrees ? { opacity: 0.45 } : undefined}
+                >
+                  <button type="button" onClick={() => onTransposeChange(-1)} aria-label="Descendre d'un demi-ton" className="w-9 h-9 text-lg">−</button>
+                  <button type="button" onClick={onTransposeReset} aria-label="Revenir au ton d'origine" className="min-w-[72px] h-9 px-2 border-x border-slate-200 dark:border-slate-700 font-mono font-bold text-sm">
+                    {semiLabel}
+                  </button>
+                  <button type="button" onClick={() => onTransposeChange(1)} aria-label="Monter d'un demi-ton" className="w-9 h-9 text-lg">+</button>
+                </div>
+              </div>
+            )}
+            {onNotationModeChange && (
+              <div role="group" aria-label="Notation des accords" className="inline-flex p-0.5 border border-slate-300 dark:border-slate-700 rounded-md bg-slate-50 dark:bg-slate-900">
+                <button type="button" aria-pressed={!isDegrees} onClick={() => onNotationModeChange(NotationMode.LETTERS)} className={segBtn(!isDegrees)}>Accords</button>
+                <button type="button" aria-pressed={isDegrees} onClick={() => onNotationModeChange(NotationMode.DEGREES)} className={segBtn(isDegrees)}>Degrés</button>
+              </div>
+            )}
+            <button type="button" onClick={() => setShowChords(!showChords)} aria-pressed={!showChords} className={toolBtn}>
+              {showChords ? 'Paroles seules' : 'Afficher les accords'}
+            </button>
+            <div className="inline-flex items-center border border-slate-300 dark:border-slate-700 rounded-md bg-slate-50 dark:bg-slate-900">
+              <button type="button" onClick={() => adjustFontSize(-0.1)} aria-label="Réduire le texte" className="w-9 h-9 inline-flex items-center justify-center"><ZoomOut size={16} /></button>
+              <span className="font-mono text-xs text-slate-600 dark:text-slate-400 w-11 text-center border-x border-slate-200 dark:border-slate-700 leading-9">{Math.round(fontSize * 16)}px</span>
+              <button type="button" onClick={() => adjustFontSize(0.1)} aria-label="Agrandir le texte" className="w-9 h-9 inline-flex items-center justify-center"><ZoomIn size={16} /></button>
+            </div>
+            <span className="flex-1" />
+            <button
+              type="button"
+              onClick={() => setIsScrolling(!isScrolling)}
+              aria-pressed={isScrolling}
+              className={`inline-flex items-center gap-2 h-9 px-3.5 rounded-md border text-sm font-semibold transition-colors ${
+                isScrolling
+                  ? 'border-red-500 bg-red-500 text-white dark:border-red-400 dark:bg-red-400 dark:text-stage'
+                  : 'border-red-500 bg-slate-50 text-red-600 dark:border-red-400 dark:bg-slate-900 dark:text-red-400'
+              }`}
+            >
+              {isScrolling ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+              {isScrolling ? `Défilement · ${scrollSpeed}` : 'Défilement'}
+            </button>
+          </div>
+
+          {/* YouTube Embed */}
+          {song.youtubeUrl && getYoutubeEmbedUrl(song.youtubeUrl) && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowVideo(v => !v)}
+                className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-slate-100 mb-2"
+              >
+                {showVideo ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                {showVideo ? 'Masquer la vidéo' : 'Afficher la vidéo'}
+              </button>
+              {showVideo && (
+                <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                  <iframe
+                    className="absolute inset-0 w-full h-full rounded-xl border border-slate-200 dark:border-slate-800"
+                    src={getYoutubeEmbedUrl(song.youtubeUrl)!}
+                    title={`${song.title} - ${song.artist}`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Sheet */}
+          <div className={`select-text transition-all ${usesChordLines ? 'font-mono' : 'font-sans'} ${isPinching ? 'duration-0' : 'duration-200'}`} style={{ fontSize: `${fontSize}rem` }}>
+            {parsedLines.map((lineObj, lineIdx) => {
+              if (lineObj.isSection) {
+                const mark = String.fromCharCode(65 + (sectionIndex++ % 26));
+                return (
+                  <div key={lineIdx} className="flex items-center gap-2.5 mt-8 mb-3 first:mt-0 font-sans" style={{ fontSize: 16 }}>
+                    <span className="inline-flex items-center justify-center w-6 h-6 border-[1.5px] border-ink dark:border-slate-200 rounded font-display font-extrabold text-sm">{mark}</span>
+                    <h2 className="m-0 font-sans text-xs font-semibold uppercase text-slate-500 dark:text-slate-400" style={{ letterSpacing: '0.08em' }}>{lineObj.text}</h2>
+                  </div>
+                );
+              }
+              const line = lineObj.segments;
+              const isCurrentLineChords = isChordLine(line);
+              const lineHasInlineChords = !isCurrentLineChords && line.some(seg => seg.chord !== null);
+              if (!showChords && isCurrentLineChords) return null;
+
+              return (
+                <div key={lineIdx}
+                  className={`flex flex-row items-end ${lineHasInlineChords && showChords ? 'flex-wrap mb-1.5' : `flex-nowrap overflow-x-auto whitespace-nowrap scrollbar-hide ${isCurrentLineChords && showChords ? 'mb-0' : 'mb-2'}`}`}
+                  style={{ display: 'flex', flexDirection: 'row', flexWrap: lineHasInlineChords && showChords ? 'wrap' : 'nowrap', alignItems: 'flex-end', minHeight: '1.2em' }}
+                >
+                  {line.length === 0 || (line.length === 1 && !line[0].chord && !line[0].lyrics) ? (
+                    <div className="h-6 w-full"></div>
+                  ) : (
+                    line.map((segment, segIdx) => {
+                      const chordString = processChord(segment.chord);
+                      const segmentStyle = { flexShrink: 0, flexBasis: 'auto', minWidth: isCurrentLineChords ? `${segment.span}ch` : 'auto' };
+
+                      if (isCurrentLineChords) {
+                        return (
+                          <div key={segIdx} className="flex flex-row flex-nowrap flex-shrink-0" style={segmentStyle}>
+                            {chordString && showChords && (
+                              <ChordTooltip chord={chordString}>
+                                {renderChordDisplay(chordString, segment.chord)}
+                              </ChordTooltip>
+                            )}
+                            <span className="whitespace-pre text-slate-500">{segment.lyrics}</span>
+                          </div>
+                        );
+                      }
+
+                      // Inline chords: stack each chord above its syllable, as on the printed sheet.
+                      if (lineHasInlineChords && showChords) {
+                        if (!segment.chord && !segment.lyrics) return null;
+                        return (
+                          <span key={segIdx} className="inline-flex flex-col flex-shrink-0">
+                            <span className="pr-2.5 leading-tight select-none min-h-[1.25em]" style={{ fontSize: '0.86em' }}>
+                              {chordString ? (
+                                <ChordTooltip chord={chordString}>
+                                  {renderChordDisplay(chordString, segment.chord)}
+                                </ChordTooltip>
+                              ) : '\u00a0'}
+                            </span>
+                            <span className={`text-ink dark:text-slate-100 whitespace-pre ${lyricsFont}`}>
+                              {renderStyledText(segment.lyrics) }
+                            </span>
+                          </span>
+                        );
+                      }
+
+                      return (
+                        <div key={segIdx} className="flex flex-row items-baseline flex-shrink-0" style={segmentStyle}>
+                          <span className={`text-ink dark:text-slate-100 whitespace-pre ${lyricsFont}`}>
+                            {renderStyledText(segment.lyrics)}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {song.notes && song.notes.trim() && (
+            <section className="flex flex-col gap-2 p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-100 dark:bg-slate-950">
+              <h2 className="m-0 font-sans text-xs font-semibold uppercase text-slate-500 dark:text-slate-400" style={{ letterSpacing: '0.08em' }}>Notes</h2>
+              <p className="m-0 whitespace-pre-wrap text-slate-600 dark:text-slate-300">{song.notes}</p>
+            </section>
+          )}
+        </article>
+
+        <aside className="flex-[1_1_260px] min-w-0 flex flex-col gap-7">
+          {chordsWithShape.length > 0 && notationMode === NotationMode.LETTERS && (
+            <section className="flex flex-col gap-3">
+              <h2 className="m-0 font-sans text-xs font-semibold uppercase text-slate-500 dark:text-slate-400" style={{ letterSpacing: '0.08em' }}>Accords · guitare</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {chordsWithShape.slice(0, 8).map(c => (
+                  <figure key={c} className="m-0 p-2.5 border border-slate-200 dark:border-slate-800 rounded-md flex flex-col items-center gap-1">
+                    <figcaption className="font-mono font-bold text-cyan-600 dark:text-cyan-400">{c}</figcaption>
+                    <ChordVisualizer frets={GUITAR_DATA[c.split('/')[0]]} size={76} />
+                  </figure>
+                ))}
+              </div>
+              {songChords.length > 0 && (
+                <p className="m-0 text-sm text-slate-500">{songChords.length} accord{songChords.length > 1 ? 's' : ''} dans la chanson</p>
+              )}
+            </section>
+          )}
+
+          <CommentsSection songId={song.id} session={session} onOpenAuth={onOpenAuth || (() => {})} />
+        </aside>
+      </div>
     </div>
   );
 };

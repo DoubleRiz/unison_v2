@@ -557,19 +557,19 @@ const ChordProgressions: React.FC = () => {
       <div className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-6 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-3">
-            <BookOpen className="text-purple-600 dark:text-purple-500" /> Chord Progressions
+            <BookOpen className="text-purple-600 dark:text-purple-500" /> Progressions d'accords
           </h1>
-          <p className="text-slate-500 dark:text-slate-400">Compose faster with these proven harmonic formulas.</p>
+          <p className="text-slate-500 dark:text-slate-400">Des enchaînements éprouvés, prêts à jouer dans tous les tons.</p>
         </div>
 
         <div className="flex flex-col md:flex-row flex-wrap items-center gap-3">
            {/* Key Selector */}
            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm w-full md:w-auto">
-             <span className="text-[10px] font-bold text-slate-500 uppercase px-2">Key</span>
+             <span className="text-[10px] font-bold text-slate-500 uppercase px-2">Ton</span>
              <select 
                value={selectedKey}
                onChange={(e) => setSelectedKey(e.target.value)}
-               className="bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold py-1.5 px-3 rounded focus:outline-none focus:border-purple-500 flex-1 cursor-pointer"
+               className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold py-1.5 px-3 rounded focus:outline-none focus:border-purple-500 flex-1 cursor-pointer"
              >
                {KEYS.map(k => <option key={k} value={k}>{k}</option>)}
              </select>
@@ -577,13 +577,13 @@ const ChordProgressions: React.FC = () => {
 
             {/* Search Bar */}
            <div className="relative w-full md:w-auto">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 dark:text-slate-400" size={14} />
               <input 
                 type="text" 
-                placeholder="Search name or mood..." 
+                placeholder="Nom ou ambiance…" 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full md:w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-purple-500 placeholder:text-slate-400"
+                className="w-full md:w-48 bg-white dark:bg-slate-900 border border-slate-400 dark:border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-purple-500 placeholder:text-slate-400"
               />
            </div>
 
@@ -592,35 +592,35 @@ const ChordProgressions: React.FC = () => {
              <select 
                value={filterGenre}
                onChange={(e) => { setFilterGenre(e.target.value); }}
-               className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-700 dark:text-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 flex-1 md:flex-none cursor-pointer"
+               className="bg-white dark:bg-slate-900 border border-slate-400 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 flex-1 md:flex-none cursor-pointer"
              >
-               <option value="">All Genres</option>
+               <option value="">Tous les genres</option>
                {uniqueGenres.map(g => <option key={g} value={g}>{g}</option>)}
              </select>
 
              <select 
                value={filterMood}
                onChange={(e) => { setFilterMood(e.target.value); }}
-               className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-700 dark:text-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 flex-1 md:flex-none cursor-pointer"
+               className="bg-white dark:bg-slate-900 border border-slate-400 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-500 flex-1 md:flex-none cursor-pointer"
              >
-               <option value="">All Moods</option>
+               <option value="">Toutes les ambiances</option>
                {uniqueMoods.map(m => <option key={m} value={m}>{m}</option>)}
              </select>
            </div>
 
            <button 
              onClick={handleSurpriseMe}
-             className="w-full md:w-auto px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-lg font-bold shadow-lg shadow-purple-900/20 flex items-center justify-center gap-2 transition-all"
+             className="w-full md:w-auto px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-bold shadow-lg flex items-center justify-center gap-2 transition-all"
            >
              <Dices size={18} />
-             <span className="inline">Surprise Me</span>
+             <span className="inline">Au hasard</span>
            </button>
         </div>
       </div>
 
       {/* Detail Modal (Pop-up) */}
       {focusedProgression && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-purple-500/50 rounded-2xl p-8 relative shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <button 
               onClick={() => setFocusedProgression(null)}
@@ -658,7 +658,7 @@ const ChordProgressions: React.FC = () => {
           <div 
             key={idx} 
             onClick={() => setFocusedProgression(prog)}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden hover:border-purple-500/50 hover:shadow-xl hover:shadow-purple-900/5 transition-all group shadow-sm flex flex-col h-full cursor-pointer relative"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden hover:border-purple-500/50 hover:shadow-xl hover: transition-all group shadow-sm flex flex-col h-full cursor-pointer relative"
           >
             <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity text-purple-500">
                <Maximize2 size={16} />
@@ -687,10 +687,10 @@ const ChordProgressions: React.FC = () => {
                       <span className="text-lg font-bold text-slate-800 dark:text-white">
                         {getChordFromRoman(r, selectedKey)}
                       </span>
-                      {i < prog.roman.length - 1 && i < 5 && <span className="text-slate-300 dark:text-slate-700">|</span>}
+                      {i < prog.roman.length - 1 && i < 5 && <span className="text-slate-700 dark:text-slate-300 dark:text-slate-700">|</span>}
                     </React.Fragment>
                   ))}
-                  {prog.roman.length > 6 && <span className="text-slate-400 text-xs italic">+{prog.roman.length - 6} more</span>}
+                  {prog.roman.length > 6 && <span className="text-slate-600 dark:text-slate-400 text-xs italic">+{prog.roman.length - 6} more</span>}
                 </div>
               </div>
             </div>
@@ -699,7 +699,7 @@ const ChordProgressions: React.FC = () => {
         
         {filteredProgressions.length === 0 && (
           <div className="col-span-full text-center py-20 text-slate-500">
-            No progressions match these filters.
+            Aucune progression ne correspond à ces filtres.
           </div>
         )}
       </div>

@@ -110,7 +110,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
 
       setNewGroupName('');
       fetchData();
-      setMessage({ type: 'success', text: 'Group created successfully!' });
+      setMessage({ type: 'success', text: 'Groupe créé.' });
       setTimeout(() => setMessage(null), 3000);
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message });
@@ -199,7 +199,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
       setSelectedGroup({ ...selectedGroup, name: editNameValue });
       setGroups(groups.map(g => g.id === selectedGroup.id ? { ...g, name: editNameValue } : g));
       setIsEditingName(false);
-      setMessage({ type: 'success', text: 'Group renamed.' });
+      setMessage({ type: 'success', text: 'Groupe renommé.' });
       setTimeout(() => setMessage(null), 3000);
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message });
@@ -209,7 +209,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
   };
 
   const removeMember = async (memberId: string, memberName: string) => {
-    if (!confirm(`Are you sure you want to remove ${memberName} from the group?`)) return;
+    if (!confirm(`Retirer ${memberName} du groupe ?`)) return;
     
     setActionLoading(true);
     try {
@@ -228,7 +228,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
   };
 
   const leaveGroup = async (memberId: string) => {
-    if (!confirm("Are you sure you want to leave this group?")) return;
+    if (!confirm("Quitter ce groupe ?")) return;
 
     setActionLoading(true);
     try {
@@ -248,21 +248,21 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
 
   return (
     <div className="max-w-4xl mx-auto pb-20">
-      <div className="mb-8 border-b border-slate-800 pb-6 flex justify-between items-center">
+      <div className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-6 flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Group Manager</h1>
-          <p className="text-slate-400">Collaborate with your band members.</p>
+          <h1 className="text-3xl font-bold text-ink dark:text-white mb-2">Groupes</h1>
+          <p className="text-slate-600 dark:text-slate-400">Invitez les membres, partagez les chansons.</p>
         </div>
-        <button onClick={onClose} className="text-slate-400 hover:text-white">
+        <button onClick={onClose} className="text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white">
           <X size={24} />
         </button>
       </div>
 
       {fetchError && (
-        <div className="mb-6 bg-red-900/20 border border-red-900 text-red-400 p-4 rounded-xl flex items-center gap-3">
+        <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 p-4 rounded-xl flex items-center gap-3">
           <AlertCircle size={24} />
           <div>
-            <h4 className="font-bold">Database Error</h4>
+            <h4 className="font-bold">Erreur de base de données</h4>
             <p className="text-sm">{fetchError}. Please run the updated SQL script in Supabase.</p>
           </div>
         </div>
@@ -273,15 +273,15 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
         <div className="md:col-span-1 space-y-6">
           
           {/* Create Group */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <h3 className="font-bold text-white mb-3">Create New Group</h3>
+          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
+            <h3 className="font-bold text-ink dark:text-white mb-3">Nouveau groupe</h3>
             <form onSubmit={createGroup} className="flex gap-2 mb-2">
               <input 
                 type="text" 
-                placeholder="Band Name..." 
+                placeholder="Nom du groupe…" 
                 value={newGroupName}
                 onChange={(e) => setNewGroupName(e.target.value)}
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-ink dark:text-white focus:outline-none focus:border-cyan-500"
               />
               <button 
                 disabled={actionLoading}
@@ -292,7 +292,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
               </button>
             </form>
             {!selectedGroup && message && (
-              <div className={`text-xs p-2 rounded ${message.type === 'error' ? 'bg-red-900/20 text-red-400' : 'bg-green-900/20 text-green-400'}`}>
+              <div className={`text-xs p-2 rounded ${message.type === 'error' ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'}`}>
                 {message.text}
               </div>
             )}
@@ -300,26 +300,26 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
 
           {/* Pending Invitations */}
           {invitations.length > 0 && (
-            <div className="bg-slate-900 border border-yellow-900/50 rounded-xl p-4">
-              <h3 className="font-bold text-yellow-500 mb-3 text-sm uppercase tracking-wider">Pending Invites</h3>
+            <div className="bg-slate-50 dark:bg-slate-900 border border-yellow-200 dark:border-yellow-900/50 rounded-xl p-4">
+              <h3 className="font-bold text-amber-600 dark:text-amber-400 mb-3 text-sm uppercase tracking-wider">Invitations en attente</h3>
               <div className="space-y-3">
                 {invitations.map((inv: any) => (
-                  <div key={inv.id} className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                    <div className="text-sm text-white mb-2">
-                      Wait to join <span className="font-bold">{inv.groups?.name}</span>?
+                  <div key={inv.id} className="bg-slate-100 dark:bg-slate-950 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
+                    <div className="text-sm text-ink dark:text-white mb-2">
+                      Rejoindre <span className="font-bold">{inv.groups?.name}</span>?
                     </div>
                     <div className="flex gap-2">
                       <button 
                         onClick={() => handleInvitation(inv.id, true)}
-                        className="flex-1 bg-green-900/30 text-green-400 hover:bg-green-900/50 py-1 rounded text-xs font-bold"
+                        className="flex-1 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/50 py-1 rounded text-xs font-bold"
                       >
-                        Accept
+                        Accepter
                       </button>
                       <button 
                         onClick={() => handleInvitation(inv.id, false)}
-                        className="flex-1 bg-red-900/30 text-red-400 hover:bg-red-900/50 py-1 rounded text-xs font-bold"
+                        className="flex-1 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 py-1 rounded text-xs font-bold"
                       >
-                        Decline
+                        Refuser
                       </button>
                     </div>
                   </div>
@@ -329,11 +329,11 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
           )}
 
           {/* My Groups List */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-            <div className="p-4 bg-slate-800/50 font-bold text-white border-b border-slate-800">My Groups</div>
-            <div className="divide-y divide-slate-800">
-              {groups.length === 0 && !loading && <div className="p-4 text-sm text-slate-500">No groups yet.</div>}
-              {loading && <div className="p-4 text-sm text-slate-500 flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Loading...</div>}
+          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+            <div className="p-4 bg-slate-100/50 dark:bg-slate-800/50 font-bold text-ink dark:text-white border-b border-slate-200 dark:border-slate-800">Mes groupes</div>
+            <div className="divide-y divide-slate-200 dark:divide-slate-800">
+              {groups.length === 0 && !loading && <div className="p-4 text-sm text-slate-500">Aucun groupe pour l’instant.</div>}
+              {loading && <div className="p-4 text-sm text-slate-500 flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Chargement…</div>}
               {groups.map(group => (
                 <div 
                   key={group.id} 
@@ -341,9 +341,9 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
                     setSelectedGroup(group);
                     setMessage(null);
                   }}
-                  className={`p-4 cursor-pointer hover:bg-slate-800 transition-colors ${selectedGroup?.id === group.id ? 'bg-slate-800 border-l-2 border-cyan-500' : ''}`}
+                  className={`p-4 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors ${selectedGroup?.id === group.id ? 'bg-slate-100 dark:bg-slate-800 border-l-2 border-cyan-500' : ''}`}
                 >
-                  <div className="font-medium text-white">{group.name}</div>
+                  <div className="font-medium text-ink dark:text-white">{group.name}</div>
                   <div className="text-xs text-slate-500">
                      Created {new Date(group.created_at).toLocaleDateString()}
                   </div>
@@ -356,7 +356,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
         {/* Right Col: Details */}
         <div className="md:col-span-2">
           {selectedGroup ? (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 min-h-[400px]">
+            <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 min-h-[400px]">
               {/* Group Header */}
               <div className="flex justify-between items-start mb-6">
                 <div className="flex-1">
@@ -367,71 +367,71 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
                         type="text" 
                         value={editNameValue}
                         onChange={(e) => setEditNameValue(e.target.value)}
-                        className="bg-slate-950 border border-cyan-500 rounded px-2 py-1 text-2xl font-bold text-white focus:outline-none"
+                        className="bg-slate-50 dark:bg-slate-950 border border-cyan-500 rounded px-2 py-1 text-2xl font-bold text-ink dark:text-white focus:outline-none"
                       />
                       <button onClick={updateGroupName} className="p-2 bg-green-600 rounded hover:bg-green-500 text-white"><Save size={18} /></button>
-                      <button onClick={() => setIsEditingName(false)} className="p-2 bg-slate-800 rounded hover:bg-slate-700 text-white"><X size={18} /></button>
+                      <button onClick={() => setIsEditingName(false)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded hover:bg-slate-300 dark:hover:bg-slate-700 text-ink dark:text-white"><X size={18} /></button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-3 group">
-                      <h2 className="text-2xl font-bold text-white">{selectedGroup.name}</h2>
+                      <h2 className="text-2xl font-bold text-ink dark:text-white">{selectedGroup.name}</h2>
                       {isCreator && (
                         <button 
                           onClick={() => setIsEditingName(true)} 
-                          className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-cyan-400 transition-opacity"
-                          title="Rename Group"
+                          className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-400 transition-opacity"
+                          title="Renommer le groupe"
                         >
                           <Edit2 size={16} />
                         </button>
                       )}
                     </div>
                   )}
-                  <p className="text-slate-400 text-sm">Manage members and permissions</p>
+                  <p className="text-slate-600 dark:text-slate-400 text-sm">Membres et permissions</p>
                 </div>
-                <div className="px-3 py-1 bg-slate-800 rounded-full text-xs text-cyan-400 border border-slate-700">
+                <div className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-xs text-cyan-600 dark:text-cyan-400 border border-slate-300 dark:border-slate-700">
                   {groupMembers.length} Members
                 </div>
               </div>
 
               {/* Invite Form */}
-              <div className="mb-8 p-4 bg-slate-950 rounded-lg border border-slate-800">
-                <h3 className="text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
-                  <UserPlus size={16} /> Invite New Member
+              <div className="mb-8 p-4 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
+                <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+                  <UserPlus size={16} /> Inviter un membre
                 </h3>
                 <form onSubmit={inviteMember} className="flex gap-2">
                   <input 
                     type="text" 
-                    placeholder="Enter username exactly..." 
+                    placeholder="Nom d’utilisateur exact…" 
                     value={inviteUsername}
                     onChange={(e) => setInviteUsername(e.target.value)}
-                    className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                    className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-400 dark:border-slate-700 rounded-lg px-4 py-2 text-sm text-ink dark:text-white focus:outline-none focus:border-cyan-500"
                   />
                   <button 
                     disabled={actionLoading}
                     type="submit" 
                     className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-sm font-medium disabled:opacity-50"
                   >
-                    Invite
+                    Inviter
                   </button>
                 </form>
                 {message && (
-                  <div className={`mt-2 text-xs p-2 rounded ${message.type === 'error' ? 'bg-red-900/20 text-red-400' : 'bg-green-900/20 text-green-400'}`}>
+                  <div className={`mt-2 text-xs p-2 rounded ${message.type === 'error' ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'}`}>
                     {message.text}
                   </div>
                 )}
               </div>
 
               {/* Member List */}
-              <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-wider">Members</h3>
+              <h3 className="text-sm font-bold text-ink dark:text-white mb-4 uppercase tracking-wider">Membres</h3>
               <div className="space-y-2">
                 {groupMembers.map(member => {
                   const isMe = member.user_id === user.id;
                   const isMemberCreator = member.role === 'admin';
                   
                   return (
-                    <div key={member.id} className="flex items-center justify-between p-3 bg-slate-950 border border-slate-800 rounded-lg group">
+                    <div key={member.id} className="flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg group">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400">
                           {member.user?.avatar_url ? (
                             <img src={member.user.avatar_url} className="w-full h-full rounded-full" />
                           ) : (
@@ -439,10 +439,10 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
                           )}
                         </div>
                         <div>
-                          <div className="text-sm font-medium text-white flex items-center gap-2">
+                          <div className="text-sm font-medium text-ink dark:text-white flex items-center gap-2">
                             {member.user?.username || 'Unknown'}
-                            {isMe && <span className="text-xs text-slate-500">(You)</span>}
-                            {member.role === 'admin' && <Shield size={12} className="text-yellow-500" />}
+                            {isMe && <span className="text-xs text-slate-500">(vous)</span>}
+                            {member.role === 'admin' && <Shield size={12} className="text-amber-600 dark:text-amber-400" />}
                           </div>
                           <div className="text-xs text-slate-500 capitalize">{member.status}</div>
                         </div>
@@ -450,15 +450,15 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
                       
                       <div className="flex items-center gap-2">
                          {member.status === 'pending' && (
-                           <span className="text-xs text-yellow-500 bg-yellow-900/20 px-2 py-1 rounded">Invited</span>
+                           <span className="text-xs text-amber-600 dark:text-amber-400 bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded">Invité</span>
                          )}
 
                          {/* Admin Actions: Kick others */}
                          {isCreator && !isMe && (
                            <button 
                              onClick={() => removeMember(member.id, member.user?.username || 'User')}
-                             className="p-2 text-slate-600 hover:text-red-500 hover:bg-red-900/10 rounded transition-colors opacity-0 group-hover:opacity-100"
-                             title="Remove Member"
+                             className="p-2 text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded transition-colors opacity-0 group-hover:opacity-100"
+                             title="Retirer le membre"
                            >
                              <Trash2 size={16} />
                            </button>
@@ -468,8 +468,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
                          {!isCreator && isMe && (
                             <button
                               onClick={() => leaveGroup(member.id)}
-                              className="p-2 text-slate-600 hover:text-red-500 hover:bg-red-900/10 rounded transition-colors"
-                              title="Leave Group"
+                              className="p-2 text-slate-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded transition-colors"
+                              title="Quitter le groupe"
                             >
                               <LogOut size={16} />
                             </button>
@@ -481,9 +481,9 @@ const GroupManager: React.FC<GroupManagerProps> = ({ user, onClose }) => {
               </div>
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-slate-500 border border-dashed border-slate-800 rounded-xl bg-slate-900/30">
+            <div className="h-full flex flex-col items-center justify-center text-slate-500 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/30 dark:bg-slate-900/30">
               <Users size={48} className="mb-4 opacity-20" />
-              <p>Select a group to manage details</p>
+              <p>Choisissez un groupe pour voir ses membres</p>
             </div>
           )}
         </div>

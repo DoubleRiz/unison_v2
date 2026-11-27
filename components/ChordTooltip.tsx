@@ -65,21 +65,21 @@ const ChordTooltip: React.FC<ChordTooltipProps> = ({ chord, children }) => {
       }}
       className="pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200"
     >
-      <div className="bg-slate-900 dark:bg-slate-800 border border-slate-700 dark:border-slate-600 rounded-xl p-3 shadow-2xl min-w-[140px]">
-        <div className="flex justify-between items-center mb-2 border-b border-slate-800 dark:border-slate-700 pb-1">
-          <span className="text-[10px] font-black text-white uppercase tracking-wider">{chord}</span>
+      <div className="relative bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md p-3 shadow-xl min-w-[150px] font-sans">
+        <div className="flex justify-between items-center gap-3 mb-2 border-b border-slate-200 dark:border-slate-800 pb-1.5">
+          <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400">{chord}</span>
           <span className="flex gap-1">
             <button
               onClick={(e) => { e.stopPropagation(); setInstrument('guitar'); }}
-              className={`w-6 h-6 rounded-md flex items-center justify-center text-[9px] font-black transition-colors ${instrument === 'guitar' ? 'bg-cyan-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500 hover:text-slate-300'}`}
+              className={`h-6 px-1.5 rounded flex items-center justify-center text-[10px] font-semibold transition-colors ${instrument === 'guitar' ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300' : 'text-slate-500 hover:text-ink dark:hover:text-slate-100'}`}
             >
-              GTR
+              Guitare
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); setInstrument('ukulele'); }}
-              className={`w-6 h-6 rounded-md flex items-center justify-center text-[9px] font-black transition-colors ${instrument === 'ukulele' ? 'bg-cyan-600 text-white shadow-lg' : 'bg-slate-800 text-slate-500 hover:text-slate-300'}`}
+              className={`h-6 px-1.5 rounded flex items-center justify-center text-[10px] font-semibold transition-colors ${instrument === 'ukulele' ? 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300' : 'text-slate-500 hover:text-ink dark:hover:text-slate-100'}`}
             >
-              UKE
+              Ukulélé
             </button>
           </span>
         </div>
@@ -92,12 +92,12 @@ const ChordTooltip: React.FC<ChordTooltipProps> = ({ chord, children }) => {
           />
         ) : (
           <span className="block py-4 text-[10px] text-slate-500 text-center italic">
-            Diagram not found
+            Diagramme indisponible
           </span>
         )}
 
         {/* Arrow */}
-        <span className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-8 border-transparent border-t-slate-900 dark:border-t-slate-800"></span>
+        <span className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-8 border-transparent border-t-slate-300 dark:border-t-slate-700"></span>
       </div>
     </div>
   ) : null;

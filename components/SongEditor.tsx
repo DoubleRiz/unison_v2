@@ -134,37 +134,37 @@ With sections clearly marked`);
   const currentKey = `${keyRoot}${keyQuality === 'Minor' ? 'm' : ''}`;
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-3xl mx-auto p-6 bg-slate-900 rounded-xl border border-slate-800 shadow-xl">
+    <form onSubmit={handleSubmit} className="max-w-3xl mx-auto p-6 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-white">
-          {initialSong ? 'Edit Song' : 'New Song'}
+        <h2 className="text-2xl font-bold text-ink dark:text-white">
+          {initialSong ? 'Modifier la chanson' : 'Nouvelle chanson'}
         </h2>
-        <button type="button" onClick={onCancel} className="text-slate-400 hover:text-white">
+        <button type="button" onClick={onCancel} className="text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white">
           <X size={24} />
         </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1">Title</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Titre</label>
           <input
             required
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-500 text-white"
-            placeholder="Song Title"
+            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-500 text-ink dark:text-white"
+            placeholder="Titre de la chanson"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1">Artist</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Artiste</label>
           <input
             required
             type="text"
             value={artist}
             onChange={(e) => setArtist(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-500 text-white"
-            placeholder="Artist Name"
+            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-500 text-ink dark:text-white"
+            placeholder="Nom de l'artiste"
           />
         </div>
       </div>
@@ -172,19 +172,19 @@ With sections clearly marked`);
       <div className="grid grid-cols-2 gap-4 mb-4">
         {/* Key Selector Split */}
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1">Key</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ton</label>
           <div className="flex gap-1">
             <select
               value={keyRoot}
               onChange={(e) => setKeyRoot(e.target.value)}
-              className="w-2/3 bg-slate-950 border border-slate-800 rounded-l-lg px-2 py-2 text-white focus:outline-none focus:border-cyan-500 text-sm appearance-none"
+              className="w-2/3 bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-l-lg px-2 py-2 text-ink dark:text-white focus:outline-none focus:border-cyan-500 text-sm appearance-none"
             >
               {KEYS.map(k => <option key={k} value={k}>{k}</option>)}
             </select>
             <select
               value={keyQuality}
               onChange={(e) => setKeyQuality(e.target.value)}
-              className="w-1/3 bg-slate-950 border border-slate-800 border-l-0 rounded-r-lg px-1 py-2 text-slate-300 focus:outline-none focus:border-cyan-500 text-sm appearance-none"
+              className="w-1/3 bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 border-l-0 rounded-r-lg px-1 py-2 text-slate-700 dark:text-slate-300 focus:outline-none focus:border-cyan-500 text-sm appearance-none"
             >
               <option value="Major">Maj</option>
               <option value="Minor">min</option>
@@ -193,12 +193,12 @@ With sections clearly marked`);
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1">BPM</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">BPM</label>
           <input
             type="number"
             value={bpm}
             onChange={(e) => setBpm(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-500 text-white placeholder:text-slate-700"
+            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-500 text-ink dark:text-white placeholder:text-slate-700"
             placeholder="-"
           />
         </div>
@@ -206,23 +206,23 @@ With sections clearly marked`);
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1">YouTube URL</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Lien YouTube</label>
           <input
             type="text"
             value={youtubeUrl}
             onChange={(e) => setYoutubeUrl(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-500 text-white placeholder:text-slate-700"
+            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-4 py-2 focus:outline-none focus:border-cyan-500 text-ink dark:text-white placeholder:text-slate-700"
             placeholder="https://youtube.com/..."
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1">Audio URL (MP3/WAV)</label>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Lien audio (MP3/WAV)</label>
           <div className="relative">
             <input
               type="text"
               value={audioUrl}
               onChange={(e) => setAudioUrl(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-cyan-500 text-white placeholder:text-slate-700"
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-cyan-500 text-ink dark:text-white placeholder:text-slate-700"
               placeholder="https://example.com/song.mp3"
             />
             <Music2 className="absolute left-3 top-2.5 text-slate-600" size={14} />
@@ -232,7 +232,7 @@ With sections clearly marked`);
 
       {/* Genres */}
       <div className="mb-4">
-        <label className="block text-xs font-medium text-slate-400 mb-2">Genres</label>
+        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Genres</label>
         <div className="flex flex-wrap gap-2">
           {GENRES.map(genre => (
             <button
@@ -241,7 +241,7 @@ With sections clearly marked`);
               onClick={() => toggleGenre(genre)}
               className={`px-3 py-1 text-xs rounded-full border transition-all ${selectedGenres.includes(genre)
                 ? 'bg-cyan-600 border-cyan-500 text-white'
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-600'
+                : 'bg-slate-100 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-400 dark:hover:border-slate-600'
                 }`}
             >
               {genre}
@@ -252,12 +252,12 @@ With sections clearly marked`);
 
       {/* Tags */}
       <div className="mb-6">
-        <label className="block text-xs font-medium text-slate-400 mb-2">Tags</label>
-        <div className="bg-slate-950 border border-slate-800 rounded-lg p-2 flex flex-wrap gap-2 min-h-[46px] items-center">
+        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Tags</label>
+        <div className="bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-2 flex flex-wrap gap-2 min-h-[46px] items-center">
           {tags.map(tag => (
-            <span key={tag} className="bg-purple-900/30 text-purple-300 border border-purple-800/50 px-2 py-1 rounded text-xs flex items-center gap-1">
+            <span key={tag} className="bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50 px-2 py-1 rounded text-xs flex items-center gap-1">
               #{tag}
-              <button type="button" onClick={() => handleRemoveTag(tag)} className="hover:text-white">
+              <button type="button" onClick={() => handleRemoveTag(tag)} className="hover:text-ink dark:hover:text-white">
                 <X size={12} />
               </button>
             </span>
@@ -267,8 +267,8 @@ With sections clearly marked`);
             value={tagInput}
             onChange={(e) => setTagInput(e.target.value)}
             onKeyDown={handleTagKeyDown}
-            className="bg-transparent text-sm text-white focus:outline-none flex-1 min-w-[120px]"
-            placeholder="Add tag & press Enter..."
+            className="bg-transparent text-sm text-ink dark:text-white focus:outline-none flex-1 min-w-[120px]"
+            placeholder="Ajouter un tag puis Entrée…"
             list="tag-suggestions"
           />
           <datalist id="tag-suggestions">
@@ -281,41 +281,41 @@ With sections clearly marked`);
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {/* Visibility Toggle */}
-        <div className="p-3 bg-slate-950/50 border border-slate-800 rounded-lg flex items-center justify-between cursor-pointer hover:border-slate-700 transition-colors" onClick={() => setIsPublic(!isPublic)}>
+        <div className="p-3 bg-slate-100/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg flex items-center justify-between cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors" onClick={() => setIsPublic(!isPublic)}>
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${isPublic ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-800 text-slate-400'}`}>
+            <div className={`p-2 rounded-lg ${isPublic ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
               {isPublic ? <Globe size={20} /> : <Lock size={20} />}
             </div>
             <div>
-              <div className={`text-sm font-medium ${isPublic ? 'text-cyan-400' : 'text-slate-300'}`}>
-                {isPublic ? 'Public Song' : 'Private Song'}
+              <div className={`text-sm font-medium ${isPublic ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                {isPublic ? 'Chanson publique' : 'Chanson privée'}
               </div>
               <div className="text-xs text-slate-500">
-                {isPublic ? 'Visible to everyone.' : 'Only visible to you/group.'}
+                {isPublic ? 'Visible par tous.' : 'Visible par vous et votre groupe.'}
               </div>
             </div>
           </div>
-          <div className={`w-12 h-6 rounded-full relative transition-colors ${isPublic ? 'bg-cyan-600' : 'bg-slate-700'}`}>
+          <div className={`w-12 h-6 rounded-full relative transition-colors ${isPublic ? 'bg-cyan-600' : 'bg-slate-200 dark:bg-slate-700'}`}>
             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-200 ${isPublic ? 'left-7' : 'left-1'}`}></div>
           </div>
         </div>
 
         {/* Group Permission Toggle */}
         {groups.length > 0 && (
-          <div className="p-3 bg-slate-950/50 border border-slate-800 rounded-lg flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-purple-500/20 text-purple-400">
+          <div className="p-3 bg-slate-100/50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-lg flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-purple-500/20 text-purple-600 dark:text-purple-400">
               <Users size={20} />
             </div>
             <div className="flex-1">
-              <div className="text-sm font-medium text-purple-300 mb-1">
-                Allow Group Editing
+              <div className="text-sm font-medium text-purple-700 dark:text-purple-300 mb-1">
+                Modifiable par le groupe
               </div>
               <select
                 value={sharedGroupId}
                 onChange={(e) => setSharedGroupId(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded text-xs text-white py-1 px-2 focus:outline-none"
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-400 dark:border-slate-700 rounded text-xs text-ink dark:text-white py-1 px-2 focus:outline-none"
               >
-                <option value="">No Group (Only Me)</option>
+                <option value="">Aucun groupe (moi seul)</option>
                 {groups.map(g => (
                   <option key={g.id} value={g.id}>{g.name}</option>
                 ))}
@@ -326,15 +326,15 @@ With sections clearly marked`);
       </div>
 
       <div className="mb-6">
-        <label className="block text-xs font-medium text-slate-400 mb-1">
-          Content (Use [Chord] notation, use [Chorus] for sections)
+        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+          Contenu (accords entre crochets [Am], sections [Refrain], [Couplet]…)
         </label>
         <div className="relative">
           <textarea
             required
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className="w-full h-96 bg-slate-950 border border-slate-800 rounded-lg px-4 py-4 font-mono text-sm focus:outline-none focus:border-cyan-500 text-slate-300 leading-relaxed resize-none"
+            className="w-full h-96 bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-4 py-4 font-mono text-sm focus:outline-none focus:border-cyan-500 text-slate-700 dark:text-slate-300 leading-relaxed resize-none"
             placeholder={`[Intro]
 [C]      [G]
 
@@ -342,22 +342,22 @@ With sections clearly marked`);
 [C]                 [G]
 This is how you write a song...`}
           />
-          <div className="absolute top-2 right-2 opacity-50 text-[10px] text-slate-500 bg-slate-900/80 px-2 py-1 rounded pointer-events-none border border-slate-800">
-            Use monospace spaces to align
+          <div className="absolute top-2 right-2 opacity-50 text-[10px] text-slate-500 bg-slate-50/80 dark:bg-slate-900/80 px-2 py-1 rounded pointer-events-none border border-slate-200 dark:border-slate-800">
+            Alignez avec des espaces
           </div>
         </div>
       </div>
 
       {/* Notes / Verses */}
       <div className="mb-6">
-        <label className="block text-xs font-medium text-slate-400 mb-1 flex items-center gap-2">
-          <StickyNote size={12} /> Performance Notes / Info / Verse
+        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1 flex items-center gap-2">
+          <StickyNote size={12} /> Notes de jeu
         </label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          className="w-full h-24 bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-slate-300 resize-none placeholder:text-slate-700"
-          placeholder="Add verses, fx settings, or performance instructions here..."
+          className="w-full h-24 bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-slate-700 dark:text-slate-300 resize-none placeholder:text-slate-700"
+          placeholder="Réglages, effets, consignes de jeu…"
         />
       </div>
 
@@ -365,16 +365,16 @@ This is how you write a song...`}
         <button
           type="button"
           onClick={onCancel}
-          className="px-6 py-2 rounded-lg text-slate-300 hover:bg-slate-800 transition-colors"
+          className="px-6 py-2 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
         >
-          Cancel
+          Annuler
         </button>
         <button
           type="submit"
           className="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg flex items-center gap-2 font-medium transition-colors"
         >
           <Save size={18} />
-          Save Song
+          Enregistrer
         </button>
       </div>
     </form>

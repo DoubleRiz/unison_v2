@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { Song, GENRES } from '../types';
-import { Search, Filter, Dices, Music, User, Tag, Loader2, ArrowUpAZ } from 'lucide-react';
+import { Search, Loader2, Heart, X, Music } from 'lucide-react';
+import { DiceIcon, KeyBadge } from './ui/Brand';
 
 interface AdvancedSearchProps {
   session?: any;
@@ -10,9 +11,33 @@ interface AdvancedSearchProps {
   initialQuery?: string;
   onSelectSong: (id: string) => void;
   onAddSong?: () => void;
+  favoritesOnly?: boolean;
+  favoriteIds?: Set<string>;
+  onToggleFavorite?: (songId: string, isFav: boolean) => void;
+  onFavoritesOnlyChange?: (value: boolean) => void;
 }
 
-const AdvancedSearch: React.FC<AdvancedSearchProps> = ({ session, isAdmin = false, initialQuery = '', onSelectSong, onAddSong }) => {
+const normalize = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const firstLetter = (str: string) => {
+  const c = normalize(str.trim()).charAt(0).toUpperCase();
+  return /[A-Z]/.test(c) ? c : '#';
+};
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
+const AdvancedSearch: React.FC<AdvancedSearchProps> = ({
+  session,
+  isAdmin = false,
+  initialQuery = '',
+  onSelectSong,
+  onAddSong,
+  favoritesOnly = false,
+  favoriteIds,
+  onToggleFavorite,
+  onFavoritesOnlyChange
+}) => {
+  const [selectedLetter, setSelectedLetter] = useState('');
+  const [localFavs, setLocalFavs] = useState<Set<string>>(favoriteIds || new Set());
+  useEffect(() => { setLocalFavs(favoriteIds || new Set()); }, [favoriteIds]);
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,7 +74,7 @@ const AdvancedSearch: React.FC<AdvancedSearchProps> = ({ session, isAdmin = fals
       }
         
       const { data, error } = await query
-        .select('id, user_id, title, artist, bpm, original_key, youtube_url, audio_url, is_public, genres, tags')
+        .select('id, user_id, title, artist, bpm, original_key, youtube_url, audio_url, is_public, shared_with_group_id, genres, tags')
         .order('title', { ascending: true });
 
       if (error) throw error;
@@ -66,6 +91,7 @@ const AdvancedSearch: React.FC<AdvancedSearchProps> = ({ session, isAdmin = fals
             youtubeUrl: s.youtube_url,
             audioUrl: s.audio_url,
             is_public: s.is_public,
+            shared_with_group_id: s.shared_with_group_id,
             genres: s.genres || [],
             tags: s.tags || []
         }));
@@ -90,12 +116,15 @@ const AdvancedSearch: React.FC<AdvancedSearchProps> = ({ session, isAdmin = fals
   }, [songs]);
 
   const filteredSongs = songs.filter(song => {
-    const matchesTitle = song.title.toLowerCase().includes(searchTitle.toLowerCase());
+    const q = normalize(searchTitle);
+    const matchesTitle = !q || normalize(song.title).includes(q) || normalize(song.artist || '').includes(q);
     const matchesArtist = selectedArtist ? song.artist === selectedArtist : true;
     const matchesGenre = selectedGenre ? song.genres?.includes(selectedGenre) : true;
     const matchesTag = selectedTag ? song.tags?.includes(selectedTag) : true;
+    const matchesLetter = selectedLetter ? firstLetter(song.title) === selectedLetter : true;
+    const matchesFav = favoritesOnly ? localFavs.has(song.id) : true;
 
-    return matchesTitle && matchesArtist && matchesGenre && matchesTag;
+    return matchesTitle && matchesArtist && matchesGenre && matchesTag && matchesLetter && matchesFav;
   });
 
   const handleRandomSong = () => {
@@ -110,197 +139,265 @@ const AdvancedSearch: React.FC<AdvancedSearchProps> = ({ session, isAdmin = fals
     setSelectedArtist('');
     setSelectedGenre('');
     setSelectedTag('');
+    setSelectedLetter('');
+    if (onFavoritesOnlyChange) onFavoritesOnlyChange(false);
     setPage(1);
   };
 
+  const toggleFav = (songId: string) => {
+    if (!onToggleFavorite) return;
+    const isFav = !localFavs.has(songId);
+    const next = new Set(localFavs);
+    if (isFav) next.add(songId); else next.delete(songId);
+    setLocalFavs(next);
+    onToggleFavorite(songId, isFav);
+  };
+
+  const availableLetters = useMemo(() => new Set(songs.map(s => firstLetter(s.title))), [songs]);
+  const visibility = (song: Song) => song.is_public ? 'Public' : song.shared_with_group_id ? 'Groupe' : 'Privée';
+
   // Reset page when filters change
-  useEffect(() => { setPage(1); }, [searchTitle, selectedArtist, selectedGenre, selectedTag]);
+  useEffect(() => { setPage(1); }, [searchTitle, selectedArtist, selectedGenre, selectedTag, selectedLetter, favoritesOnly]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredSongs.length / PAGE_SIZE));
+  const pageSongs = filteredSongs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const activeFilters: { label: string; clear: () => void }[] = [
+    ...(favoritesOnly ? [{ label: 'Favoris', clear: () => onFavoritesOnlyChange && onFavoritesOnlyChange(false) }] : []),
+    ...(selectedArtist ? [{ label: selectedArtist, clear: () => setSelectedArtist('') }] : []),
+    ...(selectedGenre ? [{ label: selectedGenre, clear: () => setSelectedGenre('') }] : []),
+    ...(selectedTag ? [{ label: `#${selectedTag}`, clear: () => setSelectedTag('') }] : []),
+    ...(selectedLetter ? [{ label: `Lettre ${selectedLetter}`, clear: () => setSelectedLetter('') }] : [])
+  ];
+
+  const selectCls = (active: boolean) =>
+    `appearance-none min-w-[168px] h-11 pl-3 pr-9 rounded-md text-base cursor-pointer bg-slate-50 dark:bg-slate-900 bg-no-repeat ${
+      active ? 'border-[1.5px] border-ink dark:border-slate-200 font-bold' : 'border border-slate-400 dark:border-slate-700 font-medium'
+    }`;
+  const chevron = {
+    backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23686D76' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
+    backgroundPosition: 'right 12px center'
+  } as React.CSSProperties;
 
   return (
-    <div className="max-w-6xl mx-auto pb-20 p-6 animate-in fade-in duration-500">
-      <div className="mb-8 border-b border-slate-800 pb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-            <Filter className="text-cyan-500" /> Advanced Library
+    <div className="max-w-[1080px] mx-auto px-4 md:px-10 pt-6 md:pt-8 pb-12 flex flex-col gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="m-0 font-display font-extrabold text-[28px] md:text-4xl leading-tight" style={{ letterSpacing: '-0.025em' }}>
+            {favoritesOnly ? 'Favoris' : 'Bibliothèque'}
           </h1>
-          <p className="text-slate-400">Browse the entire collection alphabetically with precision filters.</p>
+          <p className="mt-1.5 mb-0 text-slate-600 dark:text-slate-400">
+            {loading ? 'Chargement…' : `${songs.length} chanson${songs.length > 1 ? 's' : ''}${localFavs.size ? `, dont ${localFavs.size} en favoris` : ''}.`}
+          </p>
         </div>
-        
-        <div className="flex items-center gap-3 flex-wrap">
-          {onAddSong && (
-            <button 
-              onClick={onAddSong}
-              className="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold shadow-lg shadow-cyan-900/20 flex items-center gap-2 transition-all transform hover:scale-105"
-            >
-              <Music size={20} />
-              Add Song
-            </button>
-          )}
-          <button 
+        <div className="flex gap-2">
+          <button
+            type="button"
             onClick={handleRandomSong}
             disabled={filteredSongs.length === 0}
-            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl font-bold shadow-lg shadow-purple-900/20 flex items-center gap-2 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Chanson au hasard parmi les résultats"
+            title="Chanson au hasard"
+            className="w-10 h-10 inline-flex items-center justify-center rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 disabled:opacity-40"
           >
-            <Dices size={24} />
-            Surprise Me!
+            <DiceIcon />
           </button>
+          {onAddSong && (
+            <button
+              type="button"
+              onClick={onAddSong}
+              className="inline-flex items-center h-10 px-4 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-semibold hover:border-slate-500"
+            >
+              Nouvelle chanson
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Filters Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-8 shadow-xl">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          {/* Title Search */}
-          <div className="relative">
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Title</label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-              <input 
-                type="text"
-                value={searchTitle}
-                onChange={(e) => setSearchTitle(e.target.value)}
-                placeholder="Search title..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors"
-              />
-            </div>
-          </div>
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <label className="flex-[1_1_280px] flex items-center gap-2.5 h-11 px-3.5 rounded-md border border-slate-400 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus-within:border-cyan-600 dark:focus-within:border-cyan-400">
+          <Search size={18} className="text-slate-500 shrink-0" aria-hidden="true" />
+          <input
+            type="search"
+            aria-label="Chercher un titre ou un artiste"
+            value={searchTitle}
+            onChange={(e) => setSearchTitle(e.target.value)}
+            placeholder="Chercher un titre ou un artiste"
+            className="flex-1 min-w-0 bg-transparent border-0 outline-none"
+          />
+        </label>
+        <label className="flex-1 sm:flex-none">
+          <span className="sr-only">Artiste</span>
+          <select value={selectedArtist} onChange={(e) => setSelectedArtist(e.target.value)} className={`${selectCls(!!selectedArtist)} w-full`} style={chevron}>
+            <option value="">Tous les artistes</option>
+            {uniqueArtists.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </label>
+        <label className="flex-1 sm:flex-none">
+          <span className="sr-only">Genre</span>
+          <select value={selectedGenre} onChange={(e) => setSelectedGenre(e.target.value)} className={`${selectCls(!!selectedGenre)} w-full`} style={chevron}>
+            <option value="">Tous les genres</option>
+            {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+        </label>
+        <label className="flex-1 sm:flex-none">
+          <span className="sr-only">Tag</span>
+          <select value={selectedTag} onChange={(e) => setSelectedTag(e.target.value)} className={`${selectCls(!!selectedTag)} w-full`} style={chevron}>
+            <option value="">Tous les tags</option>
+            {uniqueTags.map(t => <option key={t} value={t}>#{t}</option>)}
+          </select>
+        </label>
+      </div>
 
-          {/* Artist Select */}
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Artist</label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-              <select
-                value={selectedArtist}
-                onChange={(e) => setSelectedArtist(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 pl-10 pr-8 text-sm text-white focus:outline-none focus:border-cyan-500 appearance-none cursor-pointer"
-              >
-                <option value="">All Artists</option>
-                {uniqueArtists.map(artist => (
-                  <option key={artist} value={artist}>{artist}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Genre Select */}
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Genre</label>
-            <div className="relative">
-              <Music className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-              <select
-                value={selectedGenre}
-                onChange={(e) => setSelectedGenre(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 pl-10 pr-8 text-sm text-white focus:outline-none focus:border-cyan-500 appearance-none cursor-pointer"
-              >
-                <option value="">All Genres</option>
-                {GENRES.map(genre => (
-                  <option key={genre} value={genre}>{genre}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Tag Select */}
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Tag</label>
-            <div className="relative">
-              <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-              <select
-                value={selectedTag}
-                onChange={(e) => setSelectedTag(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 pl-10 pr-8 text-sm text-white focus:outline-none focus:border-cyan-500 appearance-none cursor-pointer"
-              >
-                <option value="">All Tags</option>
-                {uniqueTags.map(tag => (
-                  <option key={tag} value={tag}>#{tag}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-        
-        {(searchTitle || selectedArtist || selectedGenre || selectedTag) && (
-           <div className="mt-4 flex justify-end">
-             <button 
-               onClick={clearFilters}
-               className="text-xs text-red-400 hover:text-red-300 font-medium flex items-center gap-1"
-             >
-               Clear Filters
-             </button>
-           </div>
+      <div className="flex flex-wrap items-center gap-2 text-sm min-h-[30px]">
+        {session && onFavoritesOnlyChange && (
+          <button
+            type="button"
+            aria-pressed={favoritesOnly}
+            onClick={() => onFavoritesOnlyChange(!favoritesOnly)}
+            className={`inline-flex items-center gap-1.5 h-[30px] px-2.5 rounded border font-semibold ${
+              favoritesOnly
+                ? 'border-cyan-600 bg-cyan-100 text-cyan-700 shadow-[inset_0_-2px_0_#2440D6] dark:border-cyan-400 dark:bg-cyan-900 dark:text-cyan-300'
+                : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900'
+            }`}
+          >
+            <Heart size={14} fill={favoritesOnly ? 'currentColor' : 'none'} /> Favoris
+          </button>
         )}
+        {activeFilters.length > 0 && <span className="text-slate-500 ml-1">Filtres actifs</span>}
+        {activeFilters.map(f => (
+          <button
+            key={f.label}
+            type="button"
+            onClick={f.clear}
+            aria-label={`Retirer le filtre ${f.label}`}
+            className="inline-flex items-center gap-1.5 h-[30px] px-2.5 rounded border border-ink dark:border-slate-300 bg-[#E6E8E2] dark:bg-slate-800 font-semibold"
+          >
+            {f.label} <X size={12} aria-hidden="true" />
+          </button>
+        ))}
+        {activeFilters.length > 0 && (
+          <button type="button" onClick={clearFilters} className="h-[30px] px-2 font-semibold underline underline-offset-[3px]">Tout effacer</button>
+        )}
+        <span className="ml-auto text-slate-500">{filteredSongs.length} résultat{filteredSongs.length > 1 ? 's' : ''}</span>
       </div>
 
-      {/* Results */}
-      <div>
-        <div className="flex justify-between items-center mb-4">
-           <h2 className="text-white font-bold flex items-center gap-2">
-             <ArrowUpAZ size={20} className="text-slate-500" />
-             Results <span className="text-slate-500 font-normal">({filteredSongs.length})</span>
-           </h2>
-           {filteredSongs.length > PAGE_SIZE && (
-             <span className="text-xs text-slate-500">
-               Page {page} / {Math.ceil(filteredSongs.length / PAGE_SIZE)}
-             </span>
-           )}
+      {/* Alphabetical index */}
+      <div className="flex flex-wrap gap-0.5" aria-label="Index alphabétique" role="group">
+        {LETTERS.map(ch => {
+          const has = availableLetters.has(ch);
+          const on = selectedLetter === ch;
+          return (
+            <button
+              key={ch}
+              type="button"
+              disabled={!has}
+              aria-pressed={on}
+              onClick={() => setSelectedLetter(on ? '' : ch)}
+              className={`inline-flex items-center justify-center w-[30px] h-[30px] rounded font-mono text-sm font-bold ${
+                on
+                  ? 'bg-cyan-100 text-cyan-700 shadow-[inset_0_-2px_0_#2440D6] dark:bg-cyan-900 dark:text-cyan-300 dark:shadow-[inset_0_-2px_0_#93A5FF]'
+                  : has
+                    ? 'text-ink dark:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    : 'text-slate-300 dark:text-slate-700 cursor-default'
+              }`}
+            >
+              {ch}
+            </button>
+          );
+        })}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <Loader2 size={32} className="text-cyan-600 dark:text-cyan-400 animate-spin" />
         </div>
-
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 size={40} className="text-cyan-500 animate-spin" />
+      ) : filteredSongs.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 text-center py-14 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl">
+          <Music size={36} className="text-slate-400" />
+          <p className="m-0 text-slate-600 dark:text-slate-400">Aucune chanson ne correspond à ces filtres.</p>
+          <button type="button" onClick={clearFilters} className="h-10 px-4 rounded-md border border-slate-300 dark:border-slate-700 font-semibold">Effacer les filtres</button>
+        </div>
+      ) : (
+        <>
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto border-t-[1.5px] border-ink dark:border-slate-300">
+            <table className="w-full min-w-[720px] border-collapse">
+              <thead>
+                <tr className="text-left text-xs uppercase text-slate-500 dark:text-slate-400" style={{ letterSpacing: '0.08em' }}>
+                  {onToggleFavorite && <th className="px-2 py-3 font-semibold w-9"><span className="sr-only">Favori</span></th>}
+                  <th className="px-2 py-3 font-semibold">Titre</th>
+                  <th className="px-2 py-3 font-semibold">Artiste</th>
+                  <th className="px-2 py-3 font-semibold">Ton</th>
+                  <th className="px-2 py-3 font-semibold">Tempo</th>
+                  <th className="px-2 py-3 font-semibold">Tags</th>
+                  <th className="px-2 py-3 font-semibold">Visibilité</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageSongs.map(song => {
+                  const fav = localFavs.has(song.id);
+                  return (
+                    <tr key={song.id} className="border-t border-slate-200 dark:border-slate-800 hover:bg-slate-100/70 dark:hover:bg-slate-800/50">
+                      {onToggleFavorite && (
+                        <td className="px-2 py-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleFav(song.id)}
+                            aria-label={fav ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+                            aria-pressed={fav}
+                            className={`w-7 h-7 inline-flex items-center justify-center ${fav ? 'text-ink dark:text-slate-100' : 'text-slate-400'}`}
+                          >
+                            <Heart size={16} fill={fav ? 'currentColor' : 'none'} />
+                          </button>
+                        </td>
+                      )}
+                      <td className="px-2 py-3">
+                        <button type="button" onClick={() => onSelectSong(song.id)} className="font-semibold text-left hover:underline underline-offset-[3px]">{song.title}</button>
+                      </td>
+                      <td className="px-2 py-3 text-slate-600 dark:text-slate-400">{song.artist}</td>
+                      <td className="px-2 py-3">{song.key && <KeyBadge>{song.key}</KeyBadge>}</td>
+                      <td className="px-2 py-3 font-mono text-sm text-slate-600 dark:text-slate-400">{song.bpm || '—'}</td>
+                      <td className="px-2 py-3 text-sm text-slate-600 dark:text-slate-400">{[...(song.genres || []), ...(song.tags || [])].slice(0, 3).join(', ') || '—'}</td>
+                      <td className="px-2 py-3 text-sm text-slate-600 dark:text-slate-400">{visibility(song)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredSongs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(song => (
-                <div
-                  key={song.id}
-                  onClick={() => onSelectSong(song.id)}
-                  className="bg-slate-900 border border-slate-800 rounded-lg p-4 hover:border-cyan-500/50 hover:bg-slate-800 transition-all cursor-pointer group"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                     <h3 className="font-bold text-white group-hover:text-cyan-400 truncate pr-2">{song.title}</h3>
-                     <span className="text-xs font-mono text-slate-500 border border-slate-800 px-1.5 py-0.5 rounded">{song.key}</span>
-                  </div>
-                  <div className="text-sm text-slate-400 mb-3">{song.artist}</div>
 
-                  <div className="flex flex-wrap gap-1.5">
-                     {song.genres?.slice(0, 2).map(g => (
-                       <span key={g} className="text-[10px] px-1.5 py-0.5 bg-slate-950 text-slate-500 rounded border border-slate-800">
-                         {g}
-                       </span>
-                     ))}
-                     {song.tags?.slice(0, 2).map(t => (
-                       <span key={t} className="text-[10px] px-1.5 py-0.5 bg-purple-900/10 text-purple-400/70 rounded border border-purple-900/20">
-                         #{t}
-                       </span>
-                     ))}
-                  </div>
-                </div>
-              ))}
+          {/* Mobile list */}
+          <div className="md:hidden">
+            {pageSongs.map(song => (
+              <button
+                key={song.id}
+                type="button"
+                onClick={() => onSelectSong(song.id)}
+                className="w-full flex items-center gap-3 min-h-[60px] py-2 border-b border-slate-200 dark:border-slate-800 text-left"
+              >
+                <span className="flex-1 min-w-0 flex flex-col leading-tight">
+                  <span className="font-semibold truncate">{song.title}</span>
+                  <span className="text-sm text-slate-500 dark:text-slate-400 truncate">{song.artist}</span>
+                </span>
+                {song.key && <KeyBadge>{song.key}</KeyBadge>}
+              </button>
+            ))}
+          </div>
 
-              {filteredSongs.length === 0 && (
-                <div className="col-span-full text-center py-10 bg-slate-900/50 rounded-xl border border-dashed border-slate-800">
-                  <Music size={48} className="mx-auto text-slate-600 mb-3" />
-                  <p className="text-slate-400">No songs match your specific filters.</p>
-                  <button onClick={clearFilters} className="mt-2 text-cyan-400 hover:underline">Clear all filters</button>
-                </div>
-              )}
-            </div>
-
-            {filteredSongs.length > PAGE_SIZE && (
-              <div className="flex justify-center items-center gap-2 mt-8">
+          {totalPages > 1 && (
+            <nav aria-label="Pagination" className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600 dark:text-slate-400">
+              <span>{(page - 1) * PAGE_SIZE + 1} à {Math.min(page * PAGE_SIZE, filteredSongs.length)} sur {filteredSongs.length} résultats</span>
+              <span className="flex gap-1">
                 <button
+                  type="button"
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  className="inline-flex items-center h-9 px-3 rounded-md border border-slate-200 dark:border-slate-700 text-ink dark:text-slate-100 disabled:opacity-40"
                 >
-                  Previous
+                  Précédente
                 </button>
-                {Array.from({ length: Math.ceil(filteredSongs.length / PAGE_SIZE) }, (_, i) => i + 1)
-                  .filter(p => p === 1 || p === Math.ceil(filteredSongs.length / PAGE_SIZE) || Math.abs(p - page) <= 2)
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
                   .reduce<(number | '...')[]>((acc, p, i, arr) => {
                     if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push('...');
                     acc.push(p);
@@ -308,29 +405,36 @@ const AdvancedSearch: React.FC<AdvancedSearchProps> = ({ session, isAdmin = fals
                   }, [])
                   .map((p, i) =>
                     p === '...' ? (
-                      <span key={`ellipsis-${i}`} className="text-slate-500 px-1">…</span>
+                      <span key={`ellipsis-${i}`} className="px-1 self-center">…</span>
                     ) : (
                       <button
                         key={p}
+                        type="button"
                         onClick={() => setPage(p as number)}
-                        className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${page === p ? 'bg-cyan-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}`}
+                        aria-current={page === p ? 'page' : undefined}
+                        className={`inline-flex items-center justify-center min-w-9 h-9 rounded-md border ${
+                          page === p
+                            ? 'border-cyan-600 bg-cyan-100 text-cyan-700 font-bold shadow-[inset_0_-2px_0_#2440D6] dark:border-cyan-400 dark:bg-cyan-900 dark:text-cyan-300'
+                            : 'border-slate-200 dark:border-slate-700 text-ink dark:text-slate-100'
+                        }`}
                       >
                         {p}
                       </button>
                     )
                   )}
                 <button
-                  onClick={() => setPage(p => Math.min(Math.ceil(filteredSongs.length / PAGE_SIZE), p + 1))}
-                  disabled={page === Math.ceil(filteredSongs.length / PAGE_SIZE)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  type="button"
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="inline-flex items-center h-9 px-3 rounded-md border border-slate-200 dark:border-slate-700 text-ink dark:text-slate-100 disabled:opacity-40"
                 >
-                  Next
+                  Suivante
                 </button>
-              </div>
-            )}
-          </>
-        )}
-      </div>
+              </span>
+            </nav>
+          )}
+        </>
+      )}
     </div>
   );
 };

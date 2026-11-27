@@ -103,9 +103,9 @@ const ChordDictionary: React.FC = () => {
     <div className="max-w-4xl mx-auto pb-20 p-6">
       <div className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-6">
         <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-3">
-          <Grid3X3 className="text-cyan-600 dark:text-cyan-500" /> Chord Dictionary
+          <Grid3X3 className="text-cyan-600 dark:text-cyan-500" /> Dictionnaire d'accords
         </h1>
-        <p className="text-slate-500 dark:text-slate-400">Visual reference for Guitar, Ukulele and Piano chords.</p>
+        <p className="text-slate-500 dark:text-slate-400">Doigtés pour guitare et ukulélé, positions au piano.</p>
       </div>
 
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 mb-8 shadow-xl">
@@ -130,22 +130,22 @@ const ChordDictionary: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Root Note</label>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Fondamentale</label>
             <select
               value={root}
               onChange={(e) => setRoot(e.target.value)}
-              className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500 font-bold text-lg"
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500 font-bold text-lg"
             >
               {ROOTS.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Quality</label>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Qualité</label>
             <select
               value={JSON.stringify(quality)}
               onChange={(e) => setQuality(JSON.parse(e.target.value))}
-              className="w-full bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500 font-bold text-lg"
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-cyan-500 font-bold text-lg"
             >
               {QUALITIES.map(q => (
                 <option key={q.label} value={JSON.stringify(q)}>{q.label} ({root}{q.suffix})</option>
@@ -161,7 +161,7 @@ const ChordDictionary: React.FC = () => {
           <p className="text-slate-500 dark:text-slate-500">{instrument} • {quality.label}</p>
         </div>
 
-        <div className="bg-white dark:bg-white rounded-xl p-6 shadow-2xl shadow-cyan-900/10 w-full max-w-lg border border-slate-100 dark:border-none">
+        <div className="bg-white dark:bg-white rounded-xl p-6 shadow-2xl w-full max-w-lg border border-slate-100 dark:border-none">
            {instrument === 'Piano' ? renderPiano() : (
              <ChordVisualizer 
                 frets={chordData || []} 
@@ -173,7 +173,7 @@ const ChordDictionary: React.FC = () => {
 
         {instrument !== 'Piano' && !chordData && (
           <div className="mt-6 text-yellow-600 dark:text-yellow-500 text-sm flex items-center gap-2 bg-yellow-100 dark:bg-yellow-900/20 px-4 py-2 rounded-lg border border-yellow-200 dark:border-yellow-900/50">
-             Diagram missing for this specific chord variation.
+             Pas de diagramme pour cette variante.
           </div>
         )}
       </div>

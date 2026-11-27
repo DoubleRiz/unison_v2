@@ -28,17 +28,17 @@ const ToolbarButton: React.FC<{ active: boolean; onClick: () => void; label: str
     onClick={onClick}
     title={label}
     aria-label={label}
-    className={`p-2 rounded ${active ? 'bg-cyan-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}
+    className={`p-2 rounded ${active ? 'bg-cyan-600 text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700'}`}
   >
     {children}
   </button>
 );
 
-const Divider: React.FC = () => <div className="w-px h-6 bg-slate-700 mx-1" />;
+const Divider: React.FC = () => <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-1" />;
 
 export const DocumentToolbar: React.FC<DocumentToolbarProps> = ({ editor, onInsertSong }) => {
   return (
-    <div className="sticky top-0 z-10 flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-lg p-2 mb-4 overflow-x-auto flex-nowrap lg:flex-wrap">
+    <div className="sticky top-0 z-10 flex items-center gap-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2 mb-4 overflow-x-auto flex-nowrap lg:flex-wrap">
       <ToolbarButton label="Gras" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
         <Bold size={16} />
       </ToolbarButton>
@@ -93,7 +93,7 @@ export const DocumentToolbar: React.FC<DocumentToolbarProps> = ({ editor, onInse
           onClick={() => (key === 'default'
             ? editor.chain().focus().unsetColor().run()
             : editor.chain().focus().setColor(color.hex).run())}
-          className="w-6 h-6 rounded-full border border-slate-600"
+          className="w-6 h-6 rounded-full border border-slate-400 dark:border-slate-600"
           style={{ backgroundColor: color.hex }}
         />
       ))}
@@ -103,7 +103,7 @@ export const DocumentToolbar: React.FC<DocumentToolbarProps> = ({ editor, onInse
       <button
         type="button"
         onClick={onInsertSong}
-        className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 text-cyan-400 text-xs hover:bg-slate-700"
+        className="flex items-center gap-1 px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-cyan-600 dark:text-cyan-400 text-xs hover:bg-slate-300 dark:hover:bg-slate-700"
       >
         <Music size={14} /> Insérer une chanson
       </button>

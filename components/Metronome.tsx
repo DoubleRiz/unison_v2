@@ -95,13 +95,13 @@ const Metronome: React.FC<MetronomeProps> = ({ initialBpm }) => {
   }, [isPlaying]);
 
   return (
-    <div className="flex items-center gap-2 bg-slate-800 rounded-lg p-1 pr-3 border border-slate-700">
+    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-lg p-1 pr-3 border border-slate-300 dark:border-slate-700">
       <button
         onClick={isPlaying ? stopMetronome : startMetronome}
         className={`p-1.5 rounded-md transition-all ${
           isPlaying 
-            ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
-            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+            ? 'bg-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-500/30' 
+            : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
         }`}
         title={isPlaying ? "Stop Metronome" : "Start Metronome"}
       >
@@ -109,12 +109,12 @@ const Metronome: React.FC<MetronomeProps> = ({ initialBpm }) => {
       </button>
       
       <div className="flex items-center gap-2 min-w-[80px]">
-        <Activity size={14} className={isPlaying ? (tick ? "text-cyan-400" : "text-slate-600") : "text-slate-600"} />
+        <Activity size={14} className={isPlaying ? (tick ? "text-cyan-600 dark:text-cyan-400" : "text-slate-600") : "text-slate-600"} />
         <input 
           type="number" 
           value={bpm} 
           onChange={(e) => setBpm(Math.max(30, Math.min(300, Number(e.target.value))))}
-          className="bg-transparent text-sm font-mono w-10 text-center focus:outline-none text-white appearance-none"
+          className="bg-transparent text-sm font-mono w-10 text-center focus:outline-none text-ink dark:text-white appearance-none"
         />
         <span className="text-[10px] text-slate-500 font-bold">BPM</span>
       </div>

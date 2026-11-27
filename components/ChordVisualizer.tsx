@@ -31,7 +31,7 @@ const ChordVisualizer: React.FC<ChordVisualizerProps> = ({
     <svg width={size} height={size * 1.2} viewBox={`0 0 ${width + 20} ${height + 20}`} className="mx-auto">
       {/* Nut */}
       {baseFret === 1 && (
-        <rect x={sideMargin} y={topMargin} width={width} height={4} className="fill-slate-800 dark:fill-slate-400" />
+        <rect x={sideMargin} y={topMargin} width={width} height={4} className="fill-ink dark:fill-slate-200" />
       )}
 
       {/* Frets */}
@@ -40,7 +40,7 @@ const ChordVisualizer: React.FC<ChordVisualizerProps> = ({
           key={i} 
           x1={sideMargin} y1={topMargin + (i * fretSpacing)} 
           x2={sideMargin + width} y2={topMargin + (i * fretSpacing)} 
-          className="stroke-slate-200 dark:stroke-slate-700" strokeWidth="1" 
+          className="stroke-ink dark:stroke-slate-300" strokeWidth="1" 
         />
       ))}
 
@@ -50,13 +50,13 @@ const ChordVisualizer: React.FC<ChordVisualizerProps> = ({
           key={i} 
           x1={sideMargin + (i * stringSpacing)} y1={topMargin} 
           x2={sideMargin + (i * stringSpacing)} y2={topMargin + (5 * fretSpacing)} 
-          className="stroke-slate-200 dark:stroke-slate-700" strokeWidth={i < 3 && !isUke ? 1.5 : 0.8} 
+          className="stroke-ink dark:stroke-slate-300" strokeWidth="1" 
         />
       ))}
 
       {/* Base Fret Indicator */}
       {baseFret > 1 && (
-        <text x={0} y={topMargin + 1.2 * fretSpacing} className="fill-slate-500 dark:fill-slate-400 font-bold text-[8px]">Fr.{baseFret}</text>
+        <text x={0} y={topMargin + 1.2 * fretSpacing} className="fill-slate-600 dark:fill-slate-400 font-mono font-bold text-[8px]">Fr.{baseFret}</text>
       )}
 
       {/* Dots */}
@@ -64,10 +64,10 @@ const ChordVisualizer: React.FC<ChordVisualizerProps> = ({
         const x = sideMargin + (stringIdx * stringSpacing);
         
         if (fret === -1) {
-          return <text key={stringIdx} x={x} y={topMargin - 5} textAnchor="middle" className="fill-red-500" fontSize="10" fontWeight="bold">×</text>;
+          return <text key={stringIdx} x={x} y={topMargin - 5} textAnchor="middle" className="fill-ink dark:fill-slate-200" fontSize="10" fontWeight="bold">×</text>;
         } 
         if (fret === 0) {
-          return <circle key={stringIdx} cx={x} cy={topMargin - 5} r="3" className="stroke-cyan-500 dark:stroke-cyan-400" strokeWidth="1" fill="none" />;
+          return <circle key={stringIdx} cx={x} cy={topMargin - 5} r="3" className="stroke-ink dark:stroke-slate-200" strokeWidth="1.3" fill="none" />;
         }
         
         return (
@@ -76,7 +76,7 @@ const ChordVisualizer: React.FC<ChordVisualizerProps> = ({
             cx={x} 
             cy={topMargin + (fret * fretSpacing) - (fretSpacing / 2)} 
             r="4" 
-            className="fill-cyan-600 dark:fill-cyan-400" 
+            className="fill-ink dark:fill-slate-100" 
           />
         );
       })}

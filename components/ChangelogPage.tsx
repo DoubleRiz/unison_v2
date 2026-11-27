@@ -189,7 +189,7 @@ const ChangelogPage: React.FC<ChangelogPageProps> = ({ onBack }) => {
               <span className="px-2.5 py-1 text-xs font-bold bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 rounded-full border border-cyan-200 dark:border-cyan-700">
                 v1.0.0
               </span>
-              <span className="text-xs text-slate-400 dark:text-slate-500">Première version</span>
+              <span className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-500">Première version</span>
             </div>
             <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
               Nouveautés

@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { AudioWaveform, ArrowRight, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { inputCls, labelCls, primaryBtn, alertCls, cardCls } from './ui/styles';
 
 interface Props {
   onDone: () => void;
@@ -33,61 +34,43 @@ const ResetPasswordPage: React.FC<Props> = ({ onDone }) => {
     }
   };
 
+  const mismatch = confirm.length > 0 && password !== confirm;
+
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-[-10%] right-[-10%] w-32 h-32 bg-cyan-600/10 rounded-full blur-2xl pointer-events-none" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-32 h-32 bg-purple-600/10 rounded-full blur-2xl pointer-events-none" />
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-ink dark:text-slate-100 flex items-center justify-center p-4">
+      <section aria-labelledby="t-reset" className={`w-full max-w-[400px] p-8 flex flex-col gap-4 ${cardCls}`}>
+        <h1 id="t-reset" className="m-0 font-display font-extrabold text-[28px] leading-tight">Nouveau mot de passe</h1>
+        <p className="m-0 text-slate-600 dark:text-slate-400">Choisissez un nouveau mot de passe pour votre compte.</p>
 
-        <div className="text-center mb-10 relative z-10">
-          <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 via-cyan-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-cyan-500/30 mx-auto mb-6 transform -rotate-3">
-            <AudioWaveform className="text-white" size={32} />
-          </div>
-          <h1 className="text-3xl font-black tracking-tighter text-white mb-2">Nouveau mot de passe</h1>
-          <p className="text-slate-400 text-sm">Choisis un nouveau mot de passe pour ton compte.</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Nouveau mot de passe</label>
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-cyan-500 transition-all font-medium"
-              placeholder="••••••••"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Confirmer</label>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1.5">
+            <span className={labelCls}>Nouveau mot de passe</span>
+            <input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls} placeholder="••••••••" autoComplete="new-password" />
+            <span className="text-sm text-slate-500">6 caractères minimum.</span>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className={labelCls}>Confirmer</span>
             <input
               type="password"
               required
               minLength={6}
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-cyan-500 transition-all font-medium"
+              className={`${inputCls} ${mismatch ? '!border-red-700 dark:!border-red-400 border-[1.5px]' : ''}`}
               placeholder="••••••••"
+              autoComplete="new-password"
+              aria-invalid={mismatch}
             />
-          </div>
+            {mismatch && <span className="text-sm text-red-700 dark:text-red-400">Les deux mots de passe ne correspondent pas.</span>}
+          </label>
 
-          {message && (
-            <div className={`p-4 rounded-xl text-sm font-medium ${message.type === 'error' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-green-500/10 text-green-400 border border-green-500/20'}`}>
-              {message.text}
-            </div>
-          )}
+          {message && <p role={message.type === 'error' ? 'alert' : 'status'} className={alertCls(message.type)}>{message.text}</p>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-500 hover:to-cyan-600 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-xl shadow-cyan-900/20 active:scale-95 disabled:opacity-50"
-          >
-            {loading ? <Loader2 size={20} className="animate-spin" /> : (<>Mettre à jour<ArrowRight size={20} /></>)}
+          <button type="submit" disabled={loading} className={`${primaryBtn} mt-1`}>
+            {loading ? <Loader2 size={18} className="animate-spin" /> : 'Mettre à jour'}
           </button>
         </form>
-      </div>
+      </section>
     </div>
   );
 };

@@ -71,18 +71,18 @@ export const SongBlockView: React.FC<NodeViewProps> = ({ node, updateAttributes,
       className="my-2 flex items-center gap-3 p-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200"
       contentEditable={false}
     >
-      <span data-drag-handle className="hidden lg:block cursor-grab text-slate-400 dark:text-slate-500 shrink-0">
+      <span data-drag-handle className="hidden lg:block cursor-grab text-slate-600 dark:text-slate-400 dark:text-slate-500 shrink-0">
         <GripVertical size={16} />
       </span>
       <div className="flex lg:hidden flex-col shrink-0">
-        <button type="button" onClick={() => moveBy(-1)} className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+        <button type="button" onClick={() => moveBy(-1)} className="p-1.5 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
           <ChevronUp size={14} />
         </button>
-        <button type="button" onClick={() => moveBy(1)} className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+        <button type="button" onClick={() => moveBy(1)} className="p-1.5 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
           <ChevronDown size={14} />
         </button>
       </div>
-      <Lock size={14} className="text-slate-400 dark:text-slate-500 shrink-0" />
+      <Lock size={14} className="text-slate-600 dark:text-slate-400 dark:text-slate-500 shrink-0" />
       <div className="flex-1 min-w-0">
         <div className="font-bold truncate">{song.title}</div>
         <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{song.artist} • {song.key}</div>
@@ -98,7 +98,7 @@ export const SongBlockView: React.FC<NodeViewProps> = ({ node, updateAttributes,
           <Plus size={12} />
         </button>
       </div>
-      <button type="button" onClick={removeBlock} className="p-1 text-slate-400 dark:text-slate-500 hover:text-red-500 shrink-0">
+      <button type="button" onClick={removeBlock} className="p-1 text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:text-red-500 shrink-0">
         <X size={16} />
       </button>
     </NodeViewWrapper>

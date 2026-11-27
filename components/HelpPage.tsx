@@ -1,170 +1,137 @@
-
 import React from 'react';
-import { BookOpen, Music, Users, List, Play, Edit3, Type, Hash, ShieldQuestion, ChevronLeft } from 'lucide-react';
 
 interface HelpPageProps {
   onBack: () => void;
 }
 
-const HelpPage: React.FC<HelpPageProps> = ({ onBack }) => {
+const SECTIONS = [
+  { id: 'ecrire', label: '1 · Écrire une chanson' },
+  { id: 'transposer', label: '2 · Transposition et degrés' },
+  { id: 'setlists', label: '3 · Setlists' },
+  { id: 'scene', label: '4 · Mode scène et défilement' },
+  { id: 'groupes', label: '5 · Groupes' }
+];
+
+const Code: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <code className="font-mono bg-[#E6E8E2] dark:bg-slate-800 px-1 rounded">{children}</code>
+);
+
+const Label: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <span className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400" style={{ letterSpacing: '0.08em' }}>{children}</span>
+);
+
+const Seg: React.FC<{ c: string; l: string }> = ({ c, l }) => (
+  <span className="inline-flex flex-col">
+    <b className="font-mono font-bold text-cyan-600 dark:text-cyan-400 pr-2">{c}</b>
+    <span className="whitespace-pre">{l}</span>
+  </span>
+);
+
+const HelpPage: React.FC<HelpPageProps> = () => {
+  const [active, setActive] = React.useState('ecrire');
+
+  const goTo = (id: string) => {
+    setActive(id);
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
-    <div className="max-w-4xl mx-auto pb-20">
-      <div className="mb-8 border-b border-slate-800 pb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-            <BookOpen className="text-cyan-500" /> Help & Tutorials
-          </h1>
-          <p className="text-slate-400">Master ChordCraft with these guides.</p>
-        </div>
-        <button onClick={onBack} className="text-slate-400 hover:text-white flex items-center gap-2">
-            <ChevronLeft size={20} /> Back
-        </button>
-      </div>
+    <div className="flex flex-wrap gap-12 items-start text-ink dark:text-slate-100">
+      <nav aria-label="Sommaire" className="flex-[1_1_200px] flex flex-col gap-0.5 md:sticky md:top-6">
+        <p className="m-0 mb-2 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400" style={{ letterSpacing: '0.08em' }}>Sommaire</p>
+        {SECTIONS.map(s => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => goTo(s.id)}
+            className={`text-left py-1.5 ${active === s.id ? 'font-semibold text-ink dark:text-slate-100' : 'text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-slate-100'}`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </nav>
 
-      <div className="space-y-12">
-        {/* 1. Writing Songs */}
-        <section>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-cyan-900/30 text-cyan-400 rounded-lg">
-              <Edit3 size={24} />
+      <article className="flex-[999_1_560px] min-w-0 flex flex-col gap-11">
+        <header>
+          <h1 className="m-0 font-display font-extrabold text-4xl" style={{ letterSpacing: '-0.025em' }}>Aide</h1>
+          <p className="mt-1.5 mb-0 text-slate-600 dark:text-slate-400">Tout ce qu'il faut pour écrire, transposer et jouer avec Unison.</p>
+        </header>
+
+        <section id="ecrire" className="flex flex-col gap-3.5 scroll-mt-6">
+          <h2 className="m-0 font-display font-bold text-[28px]">1 · Écrire une chanson</h2>
+          <p className="m-0 text-slate-600 dark:text-slate-400 max-w-[40em]">
+            Les accords s'écrivent entre crochets, soit dans le texte (<Code>[G]Au clair</Code>), soit sur la ligne au-dessus des paroles, alignés avec des espaces.
+            Une ligne seule entre crochets comme <Code>[Refrain]</Code> devient un titre de section.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <div className="flex-[1_1_280px] min-w-0 flex flex-col gap-1.5">
+              <Label>Ce que vous tapez</Label>
+              <pre className="m-0 p-4 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md font-mono text-sm leading-[1.7] overflow-x-auto">{`[Refrain]
+[G]Au clair de la [D]lune
+[G]Mon ami [D]Pier[G]rot`}</pre>
             </div>
-            <h2 className="text-2xl font-bold text-white">Writing Songs</h2>
-          </div>
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-            <p className="text-slate-300 mb-4">
-              ChordCraft uses a simple <strong>ChordPro-like</strong> format. To verify that your song works with the transposition engine, enclose your chords in square brackets.
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 font-mono text-sm">
-                <div className="text-slate-500 mb-2 border-b border-slate-800 pb-2">Input (Editor)</div>
-                <div className="text-white">
-                  [Intro]<br/>
-                  [C]     [G]<br/>
-                  <br/>
-                  [Verse 1]<br/>
-                  [C]                [G]<br/>
-                  This is how you write a song<br/>
-                  [Am]             [F]<br/>
-                  With sections clearly marked
+            <div className="flex-[1_1_280px] min-w-0 flex flex-col gap-1.5">
+              <Label>Ce qui s'affiche</Label>
+              <div className="p-4 border border-slate-200 dark:border-slate-800 rounded-md flex flex-col gap-2">
+                <div className="flex items-center gap-2.5">
+                  <span className="inline-flex items-center justify-center w-[22px] h-[22px] border-[1.5px] border-ink dark:border-slate-200 rounded font-display font-extrabold text-sm">A</span>
+                  <Label>Refrain</Label>
                 </div>
-              </div>
-              <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 font-mono text-sm">
-                <div className="text-slate-500 mb-2 border-b border-slate-800 pb-2">Output (Result)</div>
-                <div className="mb-4">
-                   <span className="inline-block px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-cyan-400 text-[10px] font-bold uppercase tracking-widest">
-                     INTRO
-                   </span>
-                </div>
-                <div className="flex mb-4">
-                   <span className="text-cyan-400 font-bold mr-4">C</span>
-                   <span className="text-cyan-400 font-bold">G</span>
-                </div>
-                <div className="mb-2">
-                   <span className="inline-block px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-cyan-400 text-[10px] font-bold uppercase tracking-widest">
-                     VERSE 1
-                   </span>
-                </div>
-                <div className="flex flex-col">
-                   <div className="text-cyan-400 font-bold text-xs">C</div>
-                   <div className="text-slate-300">This is how you write a song</div>
-                </div>
+                <div className="flex flex-wrap items-end text-lg"><Seg c="G" l="Au clair de la " /><Seg c="D" l="lune" /></div>
+                <div className="flex flex-wrap items-end text-lg"><Seg c="G" l="Mon ami " /><Seg c="D" l="Pier" /><Seg c="G" l="rot" /></div>
               </div>
             </div>
-
-            <ul className="list-disc list-inside mt-4 text-slate-400 text-sm space-y-1">
-              <li>Use <code>[Bracket]</code> notation for all chords: <code>[Am7]</code>, <code>[C/G]</code>, <code>[D#dim]</code>.</li>
-              <li>Use <code>[Chorus]</code>, <code>[Verse]</code>, <code>[Bridge]</code> to create styled section headers.</li>
-              <li>Align chords over lyrics using spaces. The editor uses a monospace font to help you align them perfectly.</li>
-            </ul>
           </div>
+          <p className="m-0 text-slate-600 dark:text-slate-400">
+            Accords reconnus : <Code>[Am7]</Code> <Code>[C/G]</Code> <Code>[D#dim]</Code>, basse après la barre oblique.
+            Sections reconnues : Intro, Couplet, Refrain, Pont, Solo, Outro (et leurs équivalents anglais).
+          </p>
         </section>
 
-        {/* 2. Notation Modes */}
-        <section>
-           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-purple-900/30 text-purple-400 rounded-lg">
-              <Hash size={24} />
+        <section id="transposer" className="flex flex-col gap-3.5 scroll-mt-6">
+          <h2 className="m-0 font-display font-bold text-[28px]">2 · Transposition et degrés</h2>
+          <p className="m-0 text-slate-600 dark:text-slate-400 max-w-[40em]">
+            Les boutons − et + déplacent toute la grille d'un demi-ton ; un clic sur le ton revient à l'original. En mode Degrés, les accords sont notés
+            par leur fonction dans la tonalité : la même grille se lit dans n'importe quel ton.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <div className="flex-[1_1_240px] flex flex-col gap-1.5 p-4 border border-slate-200 dark:border-slate-800 rounded-md">
+              <Label>Lettres, ton de C</Label>
+              <span className="font-mono font-bold text-xl text-cyan-600 dark:text-cyan-400 whitespace-pre">C   Am   F   G</span>
             </div>
-            <h2 className="text-2xl font-bold text-white">Transposition & Degrees</h2>
-          </div>
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-            <p className="text-slate-300 mb-4">
-              ChordCraft understands music theory. You can switch between standard letter notation and Nashville Number System (Degrees) instantly.
-            </p>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 bg-slate-950 rounded-lg border border-slate-800">
-                   <h4 className="font-bold text-white mb-2 flex items-center gap-2"><Type size={16}/> Standard</h4>
-                   <p className="text-sm text-slate-400 mb-2">Key of C</p>
-                   <div className="text-cyan-400 font-bold text-xl">C  -  Am  -  F  -  G</div>
-                </div>
-                <div className="p-4 bg-slate-950 rounded-lg border border-slate-800">
-                   <h4 className="font-bold text-white mb-2 flex items-center gap-2"><Hash size={16}/> Degrees</h4>
-                   <p className="text-sm text-slate-400 mb-2">Universal</p>
-                   <div className="flex gap-4 font-bold text-xl">
-                      <span><span className="text-fuchsia-400">1</span></span>
-                      <span><span className="text-fuchsia-400">6</span><span className="text-cyan-400">m</span></span>
-                      <span><span className="text-fuchsia-400">4</span></span>
-                      <span><span className="text-fuchsia-400">5</span></span>
-                   </div>
-                </div>
-             </div>
-          </div>
-        </section>
-
-        {/* 3. Groups & Setlists */}
-        <section>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-blue-900/30 text-blue-400 rounded-lg">
-                  <Users size={24} />
-                </div>
-                <h2 className="text-2xl font-bold text-white">Groups</h2>
-              </div>
-              <p className="text-slate-400 text-sm mb-4">
-                Create a band group and invite members by their username. 
-                When editing a song, you can choose to <strong>"Allow Group Editing"</strong>. 
-                This lets any member of that group modify the song details.
-              </p>
-            </div>
-            <div>
-               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-green-900/30 text-green-400 rounded-lg">
-                  <List size={24} />
-                </div>
-                <h2 className="text-2xl font-bold text-white">Setlists</h2>
-              </div>
-              <p className="text-slate-400 text-sm mb-4">
-                Drag and drop songs to create the perfect flow. 
-                You can change the key of a song <strong>specifically for a setlist</strong> without affecting the original version in your library.
-              </p>
+            <div className="flex-[1_1_240px] flex flex-col gap-1.5 p-4 border border-slate-200 dark:border-slate-800 rounded-md">
+              <Label>Degrés, valable partout</Label>
+              <span className="font-mono font-bold text-xl text-violet-600 dark:text-violet-400 whitespace-pre">1   6m   4   5</span>
             </div>
           </div>
         </section>
 
-         {/* 4. Performance Mode */}
-        <section>
-           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-red-900/30 text-red-400 rounded-lg">
-              <Play size={24} />
-            </div>
-            <h2 className="text-2xl font-bold text-white">Performance Mode</h2>
-          </div>
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-             <p className="text-slate-300 mb-2">
-               Inside a Setlist, click the green <strong>Perform</strong> button.
-             </p>
-             <ul className="list-disc list-inside text-slate-400 text-sm space-y-2">
-                <li>Full screen view optimized for stage.</li>
-                <li>Large navigation buttons to switch songs.</li>
-                <li>Prevents screen sleep (on supported devices).</li>
-                <li>Access to Transpose and Notation toggles on the fly.</li>
-             </ul>
-          </div>
+        <section id="setlists" className="flex flex-col gap-3.5 scroll-mt-6">
+          <h2 className="m-0 font-display font-bold text-[28px]">3 · Setlists</h2>
+          <p className="m-0 text-slate-600 dark:text-slate-400 max-w-[40em]">
+            Ajoutez des chansons depuis la bibliothèque, réordonnez-les et insérez des notes entre les morceaux (pause, changement d'instrument).
+            Chaque morceau garde sa propre transposition. L'export PDF reprend l'ordre et les tonalités.
+          </p>
         </section>
 
-      </div>
+        <section id="scene" className="flex flex-col gap-3.5 scroll-mt-6">
+          <h2 className="m-0 font-display font-bold text-[28px]">4 · Mode scène et défilement</h2>
+          <ul className="m-0 pl-5 list-disc text-slate-600 dark:text-slate-400 flex flex-col gap-1">
+            <li>Depuis une setlist, « Mode scène » enchaîne les morceaux dans l'ordre.</li>
+            <li>Sur une chanson, « Défilement » fait monter la grille tout seul ; réglez la vitesse de 1 à 7.</li>
+            <li>Agrandissez le texte avec les loupes, ou en pinçant l'écran sur mobile et tablette.</li>
+            <li>« Paroles seules » masque les accords pour les chanteurs.</li>
+          </ul>
+        </section>
+
+        <section id="groupes" className="flex flex-col gap-3.5 scroll-mt-6">
+          <h2 className="m-0 font-display font-bold text-[28px]">5 · Groupes</h2>
+          <p className="m-0 text-slate-600 dark:text-slate-400 max-w-[40em]">
+            Une chanson rattachée à un groupe est visible par tous ses membres. Avec « Modifiable par le groupe », chacun peut corriger paroles et accords.
+            Invitez un membre par son nom d'utilisateur depuis la page Groupes.
+          </p>
+        </section>
+      </article>
     </div>
   );
 };

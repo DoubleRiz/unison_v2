@@ -58,20 +58,20 @@ interface SetlistCardProps {
 
 const SetlistCard: React.FC<SetlistCardProps> = ({ list, onDelete, onDuplicate, onSelect }) => (
   <div onClick={() => onSelect(list)}
-    className="bg-slate-900 border border-slate-800 rounded-xl p-6 cursor-pointer hover:border-cyan-500/50 transition-all group relative">
+    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 cursor-pointer hover:border-cyan-500/50 transition-all group relative">
     <div className="flex justify-between items-start">
       <div>
-        <h3 className="text-xl font-bold text-white mb-1 group-hover:text-cyan-400 transition-colors">{list.title}</h3>
+        <h3 className="text-xl font-bold text-ink dark:text-white mb-1 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">{list.title}</h3>
         <div className="text-xs text-slate-500 flex items-center gap-2">
           <Calendar size={12} />
           {new Date(list.created_at).toLocaleDateString()}
         </div>
       </div>
       <div className="flex items-center">
-        <button onClick={(e) => onDuplicate(list.id, e)} className="text-slate-600 hover:text-cyan-400 p-2">
+        <button onClick={(e) => onDuplicate(list.id, e)} className="text-slate-600 hover:text-cyan-600 dark:hover:text-cyan-400 p-2">
           <Copy size={18} />
         </button>
-        <button onClick={(e) => onDelete(list.id, e)} className="text-slate-600 hover:text-red-400 p-2">
+        <button onClick={(e) => onDelete(list.id, e)} className="text-slate-600 hover:text-red-600 dark:hover:text-red-400 p-2">
           <Trash2 size={18} />
         </button>
       </div>
@@ -401,7 +401,7 @@ const SetlistEditor: React.FC<SetlistEditorProps> = ({ user, allSongs, groups, o
     if (!currentSetlist || currentSetlist.id === FAVORITES_ID) return;
 
     if (setlistItems.some(item => item.type === 'song' && item.song.id === song.id)) {
-      alert("Song already in setlist");
+      alert("Déjà dans la setlist");
       return;
     }
     const { data, error } = await supabase.from('setlist_songs')
@@ -551,11 +551,11 @@ if (performanceMode && currentSetlist) {
   if (performanceEditingSong && onSaveSong) {
     const existingTags = [...new Set(allSongs.flatMap(s => s.tags || []))];
     return (
-      <div className="fixed inset-0 bg-slate-950 z-50 flex flex-col">
-        <div className="h-16 bg-slate-900 border-b border-slate-800 flex items-center px-6 shrink-0">
-          <button onClick={() => setPerformanceEditingSong(null)} className="text-slate-400 hover:text-white shrink-0 flex items-center gap-2">
+      <div className="fixed inset-0 bg-slate-100 dark:bg-slate-950 z-50 flex flex-col">
+        <div className="h-16 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center px-6 shrink-0">
+          <button onClick={() => setPerformanceEditingSong(null)} className="text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white shrink-0 flex items-center gap-2">
             <ChevronLeft size={24} />
-            <span className="text-sm">Back to Perform</span>
+            <span className="text-sm">Retour au mode scène</span>
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -583,45 +583,45 @@ if (performanceMode && currentSetlist) {
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-950 z-50 flex flex-col">
-      <div className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
+    <div className="fixed inset-0 bg-slate-100 dark:bg-slate-950 z-50 flex flex-col">
+      <div className="h-16 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-          <button onClick={() => setPerformanceMode(false)} className="text-slate-400 hover:text-white shrink-0"><X size={24} /></button>
+          <button onClick={() => setPerformanceMode(false)} className="text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white shrink-0"><X size={24} /></button>
           <div className="min-w-0">
-            <h2 className="text-base sm:text-lg font-bold text-white leading-tight truncate">{currentSetlist.title}</h2>
-            <div className="text-[10px] sm:text-xs text-slate-400">{performanceIndex + 1} / {setlistItems.length}</div>
+            <h2 className="text-base sm:text-lg font-bold text-ink dark:text-white leading-tight truncate">{currentSetlist.title}</h2>
+            <div className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-400">{performanceIndex + 1} / {setlistItems.length}</div>
           </div>
         </div>
         <div className="flex items-center gap-4">
           {currentItem.type === 'song' && onSaveSong && (
             <button
               onClick={() => setPerformanceEditingSong(currentItem.song)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 text-sm font-medium text-slate-300 hover:text-white transition-colors"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-ink dark:hover:text-white transition-colors"
             >
               <Edit2 size={18} />
-              <span className="hidden sm:inline">Edit</span>
+              <span className="hidden sm:inline">Modifier</span>
             </button>
           )}
           <button
             onClick={() => setNotationMode(m => m === NotationMode.LETTERS ? NotationMode.DEGREES : NotationMode.LETTERS)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 text-sm font-medium text-slate-300 hover:text-white transition-colors"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-ink dark:hover:text-white transition-colors"
           >
             {notationMode === NotationMode.LETTERS ? <Hash size={18} /> : <Type size={18} />}
             <span className="hidden sm:inline">{notationMode === NotationMode.LETTERS ? 'Letters' : 'Degrees'}</span>
           </button>
-          <div className="h-8 w-px bg-slate-800 mx-2" />
+          <div className="h-8 w-px bg-slate-100 dark:bg-slate-800 mx-2" />
           <button disabled={performanceIndex === 0} onClick={() => setPerformanceIndex(p => p - 1)}
-            className="p-2 rounded-full bg-slate-800 text-white disabled:opacity-30 hover:bg-cyan-600 transition-colors">
+            className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-ink dark:text-white disabled:opacity-30 hover:bg-cyan-600 transition-colors">
             <ChevronLeft size={24} />
           </button>
-          <div className="text-xl font-mono text-cyan-400 font-bold w-8 text-center">{performanceIndex + 1}</div>
+          <div className="text-xl font-mono text-cyan-600 dark:text-cyan-400 font-bold w-8 text-center">{performanceIndex + 1}</div>
           <button disabled={performanceIndex === setlistItems.length - 1} onClick={() => setPerformanceIndex(p => p + 1)}
-            className="p-2 rounded-full bg-slate-800 text-white disabled:opacity-30 hover:bg-cyan-600 transition-colors">
+            className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-ink dark:text-white disabled:opacity-30 hover:bg-cyan-600 transition-colors">
             <ChevronRight size={24} />
           </button>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-6 scroll-smooth bg-slate-950">
+      <div className="flex-1 overflow-y-auto p-6 scroll-smooth bg-slate-100 dark:bg-slate-950">
         <div className="max-w-4xl mx-auto">
           {currentItem.type === 'song' ? (
             <SongSheet
@@ -630,7 +630,7 @@ if (performanceMode && currentSetlist) {
               notationMode={notationMode}
             />
           ) : (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 min-h-[400px] flex items-center justify-center text-center">
+            <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8 min-h-[400px] flex items-center justify-center text-center">
               <div className="max-w-2xl">
                 <div className={`text-2xl font-bold mb-4 ${TEXT_SIZES[currentItem.size]?.uiClass || ''}`} style={{ color: TEXT_COLORS[currentItem.color]?.hex || '#fff' }}>
                   {currentItem.content}
@@ -653,71 +653,71 @@ if (!currentSetlist) {
   return (
     <div className="max-w-4xl mx-auto pb-20">
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60">
+          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
             <div className="flex flex-col items-center text-center mb-6">
-              <div className="w-12 h-12 bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mb-4">
+              <div className="w-12 h-12 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mb-4">
                 <AlertTriangle size={24} />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Delete Setlist?</h3>
-              <p className="text-slate-400 text-sm">Are you sure? This action cannot be undone.</p>
+              <h3 className="text-xl font-bold text-ink dark:text-white mb-2">Supprimer la setlist ?</h3>
+              <p className="text-slate-600 dark:text-slate-400 text-sm">Cette action est définitive.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowDeleteModal(false)}
-                className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-medium transition-colors">Cancel</button>
+                className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors">Annuler</button>
               <button onClick={executeDeleteSetlist}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors">Delete</button>
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors">Supprimer</button>
             </div>
           </div>
         </div>
       )}
 
       {showDuplicateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60">
+          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
             <div className="flex flex-col items-center text-center mb-6">
-              <div className="w-12 h-12 bg-cyan-900/20 text-cyan-400 rounded-full flex items-center justify-center mb-4">
+              <div className="w-12 h-12 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400 rounded-full flex items-center justify-center mb-4">
                 <Copy size={24} />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Duplicate Setlist?</h3>
-              <p className="text-slate-400 text-sm">A copy of this setlist will be created with all its songs.</p>
+              <h3 className="text-xl font-bold text-ink dark:text-white mb-2">Dupliquer la setlist ?</h3>
+              <p className="text-slate-600 dark:text-slate-400 text-sm">Une copie de cette setlist sera créée avec tous ses morceaux.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowDuplicateModal(false)}
-                className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-medium transition-colors">Cancel</button>
+                className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors">Annuler</button>
               <button onClick={executeDuplicateSetlist}
-                className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors">Duplicate</button>
+                className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors">Dupliquer</button>
             </div>
           </div>
         </div>
       )}
 
-      <div className="mb-8 border-b border-slate-800 pb-6 flex items-center justify-between">
+      <div className="mb-8 border-b border-slate-200 dark:border-slate-800 pb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">My Setlists</h1>
-          <p className="text-slate-400">Organize your songs for gigs and rehearsals.</p>
+          <h1 className="text-3xl font-bold text-ink dark:text-white mb-2">Setlists</h1>
+          <p className="text-slate-600 dark:text-slate-400">Préparez l’ordre de vos concerts et répétitions.</p>
         </div>
-        <button onClick={onBack} className="text-slate-400 hover:text-white flex items-center gap-2"><ChevronLeft size={20} /> Back</button>
+        <button onClick={onBack} className="text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white flex items-center gap-2"><ChevronLeft size={20} /> Retour</button>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6 mb-8">
-        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Create New Setlist</h3>
+      <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 sm:p-6 mb-8">
+        <h3 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-4">Nouvelle setlist</h3>
         <form onSubmit={handleCreateSetlist} className="flex flex-col sm:flex-row gap-3">
-          <input type="text" placeholder="Gig at The Pub..." value={newTitle}
+          <input type="text" placeholder="Concert au bar…" value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
-            className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 sm:py-2 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500" />
-          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-1 shrink-0">
+            className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-4 py-3 sm:py-2 text-ink dark:text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500" />
+          <div className="flex items-center bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg p-1 shrink-0">
             <button
               type="button"
               onClick={() => setNewSetlistMode('list')}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${newSetlistMode === 'list' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${newSetlistMode === 'list' ? 'bg-cyan-600 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white'}`}
             >
               Liste
             </button>
             <button
               type="button"
               onClick={() => setNewSetlistMode('document')}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${newSetlistMode === 'document' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${newSetlistMode === 'document' ? 'bg-cyan-600 text-white' : 'text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white'}`}
             >
               Document
             </button>
@@ -725,36 +725,36 @@ if (!currentSetlist) {
           {groups.length > 0 && (
             <div className="flex-1 sm:flex-none sm:w-48">
               <select value={selectedGroupId} onChange={(e) => setSelectedGroupId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 sm:py-2 text-white focus:outline-none focus:border-cyan-500 appearance-none">
-                <option value="">Personal</option>
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-4 py-3 sm:py-2 text-ink dark:text-white focus:outline-none focus:border-cyan-500 appearance-none">
+                <option value="">Personnelle</option>
                 {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
               </select>
             </div>
           )}
-          <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-3 sm:py-2 rounded-lg flex items-center justify-center gap-2 font-bold shadow-lg shadow-cyan-900/20 active:scale-95 transition-all">
-            <Plus size={20} /> Create
+          <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-3 sm:py-2 rounded-lg flex items-center justify-center gap-2 font-bold shadow-lg active:scale-95 transition-all">
+            <Plus size={20} /> Créer
           </button>
         </form>
       </div>
 
       <div className="space-y-8">
         <div>
-          <h3 className="text-white font-bold mb-4 flex items-center gap-2">
-            <User size={18} className="text-cyan-400" /> Personal
+          <h3 className="text-ink dark:text-white font-bold mb-4 flex items-center gap-2">
+            <User size={18} className="text-cyan-600 dark:text-cyan-400" /> Personnelle
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* VIRTUAL FAVORITES CARD */}
             <div
               onClick={() => handleSelectSetlist(favoriteSetlist)}
-              className="bg-gradient-to-br from-pink-900/40 to-slate-900 border border-pink-500/30 rounded-xl p-6 cursor-pointer hover:border-pink-500 transition-all group relative overflow-hidden"
+              className="bg-red-50 dark:bg-red-900/40 border border-red-200 dark:border-red-500/30 rounded-xl p-6 cursor-pointer hover:border-pink-500 transition-all group relative overflow-hidden"
             >
               <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
                 <Heart size={100} fill="currentColor" className="text-pink-500" />
               </div>
               <div className="flex justify-between items-start relative z-10">
                 <div>
-                  <h3 className="text-xl font-bold text-white mb-1 group-hover:text-pink-400 transition-colors flex items-center gap-2">
-                    <Heart size={20} fill="currentColor" className="text-pink-500 animate-pulse" /> My Favorites
+                  <h3 className="text-xl font-bold text-ink dark:text-white mb-1 group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors flex items-center gap-2">
+                    <Heart size={20} fill="currentColor" className="text-pink-500 animate-pulse" /> Mes favoris
                   </h3>
                   <div className="text-xs text-slate-500 flex items-center gap-2">
                     Dynamic List • {allSongs.filter(s => s.is_favorite).length} songs
@@ -771,7 +771,7 @@ if (!currentSetlist) {
 
         {groupSetlists.map(g => (
           <div key={g.group.id}>
-            <h3 className="text-white font-bold mb-4 flex items-center gap-2"><Users size={18} className="text-cyan-400" /> {g.group.name}</h3>
+            <h3 className="text-ink dark:text-white font-bold mb-4 flex items-center gap-2"><Users size={18} className="text-cyan-600 dark:text-cyan-400" /> {g.group.name}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {g.lists.map(list => <SetlistCard key={list.id} list={list} onDelete={confirmDeleteSetlist} onDuplicate={confirmDuplicateSetlist} onSelect={handleSelectSetlist} />)}
             </div>
@@ -787,70 +787,70 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
   return (
     <div className="max-w-6xl mx-auto min-h-[calc(100vh-140px)] flex flex-col relative px-4 sm:px-0">
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60">
+          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
             <div className="flex flex-col items-center text-center mb-6">
-              <div className="w-12 h-12 bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mb-4">
+              <div className="w-12 h-12 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mb-4">
                 <AlertTriangle size={24} />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Delete Setlist?</h3>
-              <p className="text-slate-400 text-sm">Are you sure? This action cannot be undone.</p>
+              <h3 className="text-xl font-bold text-ink dark:text-white mb-2">Supprimer la setlist ?</h3>
+              <p className="text-slate-600 dark:text-slate-400 text-sm">Cette action est définitive.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowDeleteModal(false)}
-                className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-medium transition-colors">Cancel</button>
+                className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors">Annuler</button>
               <button onClick={executeDeleteSetlist}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors">Delete</button>
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors">Supprimer</button>
             </div>
           </div>
         </div>
       )}
 
       {showDuplicateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60">
+          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
             <div className="flex flex-col items-center text-center mb-6">
-              <div className="w-12 h-12 bg-cyan-900/20 text-cyan-400 rounded-full flex items-center justify-center mb-4">
+              <div className="w-12 h-12 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400 rounded-full flex items-center justify-center mb-4">
                 <Copy size={24} />
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Duplicate Setlist?</h3>
-              <p className="text-slate-400 text-sm">A copy of this setlist will be created with all its songs.</p>
+              <h3 className="text-xl font-bold text-ink dark:text-white mb-2">Dupliquer la setlist ?</h3>
+              <p className="text-slate-600 dark:text-slate-400 text-sm">Une copie de cette setlist sera créée avec tous ses morceaux.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowDuplicateModal(false)}
-                className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-medium transition-colors">Cancel</button>
+                className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors">Annuler</button>
               <button onClick={executeDuplicateSetlist}
-                className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors">Duplicate</button>
+                className="flex-1 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors">Dupliquer</button>
             </div>
           </div>
         </div>
       )}
 
       {editingTextId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-md w-full shadow-2xl">
-            <h3 className="text-xl font-bold text-white mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60">
+          <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-xl font-bold text-ink dark:text-white mb-4">
               {editingTextId === 'new' ? 'Add Text Note' : 'Edit Text Note'}
             </h3>
             
             <div className="space-y-4 mb-6">
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Text Content</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Texte</label>
                 <textarea
                   value={editingTextValue}
                   onChange={(e) => setEditingTextValue(e.target.value)}
-                  placeholder="Enter your note..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500 h-24 resize-none"
+                  placeholder="Votre note…"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-3 py-2 text-ink dark:text-white focus:outline-none focus:border-cyan-500 h-24 resize-none"
                 />
               </div>
               
               <div className="flex gap-4">
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Size</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Taille</label>
                   <select 
                     value={editingTextSize} 
                     onChange={(e) => setEditingTextSize(e.target.value as any)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-3 py-2 text-ink dark:text-white focus:outline-none focus:border-cyan-500"
                   >
                     {Object.entries(TEXT_SIZES).map(([key, size]) => (
                       <option key={key} value={key}>{size.description}</option>
@@ -859,11 +859,11 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
                 </div>
                 
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Color</label>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Couleur</label>
                   <select 
                     value={editingTextColor} 
                     onChange={(e) => setEditingTextColor(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-3 py-2 text-ink dark:text-white focus:outline-none focus:border-cyan-500"
                   >
                     {Object.entries(TEXT_COLORS).map(([key, color]) => (
                       <option key={key} value={key}>{color.label}</option>
@@ -874,12 +874,12 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
             </div>
             
             <div className="flex justify-end gap-2">
-              <button onClick={() => setEditingTextId(null)} className="px-4 py-2 text-slate-400 hover:text-white">Cancel</button>
+              <button onClick={() => setEditingTextId(null)} className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white">Annuler</button>
               <button 
                 onClick={saveTextNote} 
                 className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium"
               >
-                Save
+                Enregistrer
               </button>
             </div>
           </div>
@@ -887,21 +887,21 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
       )}
 
       {showPdfModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl w-96 shadow-2xl">
-          <h3 className="text-xl font-bold text-white mb-4">Export PDF</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60">
+        <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-xl w-96 shadow-2xl">
+          <h3 className="text-xl font-bold text-ink dark:text-white mb-4">Exporter en PDF</h3>
           <div className="mb-3">
-            <label className="block text-xs font-medium text-slate-400 mb-1">Document title</label>
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Titre du document</label>
             <input type="text" value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-cyan-500" />
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-3 py-2 text-ink dark:text-white focus:outline-none focus:border-cyan-500" />
           </div>
           <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-            Songs and text notes flow <span className="text-slate-300">continuously</span>. A song that doesn't fit on the current page will automatically start on a new one.
+            Les chansons et les notes s’enchaînent <span className="text-slate-700 dark:text-slate-300">en continu</span>. Une chanson qui ne tient pas sur la page commence automatiquement sur la suivante.
           </p>
           <div className="flex justify-end gap-2">
-            <button onClick={() => setShowPdfModal(false)} className="px-4 py-2 text-slate-400 hover:text-white">Cancel</button>
+            <button onClick={() => setShowPdfModal(false)} className="px-4 py-2 text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white">Annuler</button>
             <button onClick={exportToPDF} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg flex items-center gap-2">
-              <FileDown size={16} /> Export
+              <FileDown size={16} /> Exporter
             </button>
           </div>
         </div>
@@ -910,7 +910,7 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
 
     <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 flex-shrink-0">
       <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
-        <button onClick={() => setCurrentSetlist(null)} className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:text-white shrink-0">
+        <button onClick={() => setCurrentSetlist(null)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white shrink-0">
           <ChevronLeft size={20} />
         </button>
         <div className="flex items-center gap-2 min-w-0">
@@ -925,16 +925,16 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
                 value={editTitleValue}
                 onChange={(e) => setEditTitleValue(e.target.value)}
                 onBlur={handleUpdateSetlistTitle}
-                className="bg-slate-950 border border-cyan-500 rounded px-2 py-1 text-xl font-bold text-white focus:outline-none" />
+                className="bg-slate-50 dark:bg-slate-950 border border-cyan-500 rounded px-2 py-1 text-xl font-bold text-ink dark:text-white focus:outline-none" />
             </form>
           ) : (
             <div className="flex items-center gap-3 group min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold text-white cursor-pointer flex items-center gap-3 truncate" onClick={() => !isVirtual && setIsEditingTitle(true)}>
+              <h1 className="text-xl sm:text-2xl font-bold text-ink dark:text-white cursor-pointer flex items-center gap-3 truncate" onClick={() => !isVirtual && setIsEditingTitle(true)}>
                 {isVirtual && <Heart size={24} className="text-pink-500 shrink-0" fill="currentColor" />}
                 <span className="truncate">{currentSetlist.title}</span>
               </h1>
               {!isVirtual && (
-                <button onClick={() => setIsEditingTitle(true)} className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-cyan-400 transition-opacity">
+                <button onClick={() => setIsEditingTitle(true)} className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-400 transition-opacity">
                   <Edit2 size={16} />
                 </button>
               )}
@@ -942,15 +942,15 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
           )}
 
           {currentSetlist.group_id && (
-            <span className="px-2 py-0.5 rounded-full bg-purple-900/30 text-purple-400 text-xs border border-purple-800/50 flex items-center gap-1">
+            <span className="px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 text-xs border border-purple-200 dark:border-purple-800/50 flex items-center gap-1">
               <Users size={12} />
-              Group Setlist
+              Setlist de groupe
             </span>
           )}
 
           {isVirtual && (
-            <span className="px-2 py-0.5 rounded-full bg-pink-900/30 text-pink-400 text-xs border border-pink-800/50 flex items-center gap-1">
-              Smart List
+            <span className="px-2 py-0.5 rounded-full bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 text-xs border border-pink-200 dark:border-pink-800/50 flex items-center gap-1">
+              Liste dynamique
             </span>
           )}
         </div>
@@ -959,7 +959,7 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
       <div className="flex flex-wrap gap-2 sm:gap-3 w-full sm:w-auto">
         <button
           onClick={() => setNotationMode(m => m === NotationMode.LETTERS ? NotationMode.DEGREES : NotationMode.LETTERS)}
-          className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-sm font-medium text-slate-300 hover:text-white transition-colors"
+          className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-ink dark:hover:text-white transition-colors"
         >
           {notationMode === NotationMode.LETTERS ? <Hash size={18} /> : <Type size={18} />}
           <span>{notationMode === NotationMode.LETTERS ? 'Letters' : 'Degrees'}</span>
@@ -971,34 +971,34 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
           className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
         >
           <Play size={18} />
-          Perform
+          Mode scène
         </button>
         <button onClick={() => setShowPdfModal(true)} disabled={setlistItems.length === 0}
-          className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg font-medium transition-colors disabled:opacity-50 text-sm sm:text-base">
-          <FileDown size={18} /> <span className="hidden sm:inline">Export PDF</span><span className="sm:hidden">PDF</span>
+          className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-cyan-600 dark:text-cyan-400 rounded-lg font-medium transition-colors disabled:opacity-50 text-sm sm:text-base">
+          <FileDown size={18} /> <span className="hidden sm:inline">Exporter en PDF</span><span className="sm:hidden">PDF</span>
         </button>
 
         {!isVirtual && (
           <div className="relative" ref={actionsMenuRef}>
             <button
               onClick={() => setShowActionsMenu(v => !v)}
-              className="flex items-center justify-center p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors"
+              className="flex items-center justify-center p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 hover:text-ink dark:hover:text-white rounded-lg transition-colors"
             >
               <MoreVertical size={18} />
             </button>
             {showActionsMenu && (
-              <div className="absolute right-0 mt-2 w-44 bg-slate-900 border border-slate-800 rounded-lg shadow-2xl z-40 overflow-hidden">
+              <div className="absolute right-0 mt-2 w-44 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-2xl z-40 overflow-hidden">
                 <button
                   onClick={() => { setShowActionsMenu(false); confirmDuplicateSetlist(currentSetlist.id); }}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-cyan-400 transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors text-left"
                 >
-                  <Copy size={16} /> Duplicate
+                  <Copy size={16} /> Dupliquer
                 </button>
                 <button
                   onClick={() => { setShowActionsMenu(false); confirmDeleteSetlist(currentSetlist.id); }}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-red-400 transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 hover:text-red-600 dark:hover:text-red-400 transition-colors text-left"
                 >
-                  <Trash2 size={16} /> Delete
+                  <Trash2 size={16} /> Supprimer
                 </button>
               </div>
             )}
@@ -1009,29 +1009,29 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
 
     {currentSetlist.mode === 'list' || isVirtual ? (
     <div className="flex-1 flex flex-col lg:flex-row gap-6 lg:gap-8 overflow-visible lg:overflow-hidden pb-10">
-      <div className="w-full lg:w-7/12 flex flex-col bg-slate-900 border border-slate-800 rounded-xl overflow-hidden min-h-[400px]">
-        <div className="p-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
+      <div className="w-full lg:w-7/12 flex flex-col bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden min-h-[400px]">
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex justify-between items-center">
           <div>
-            <h3 className="font-bold text-white">Setlist Order</h3>
+            <h3 className="font-bold text-ink dark:text-white">Ordre de passage</h3>
             <p className="text-xs text-slate-500">{setlistItems.length} items</p>
           </div>
           {!isVirtual && (
             <div className="flex items-center gap-2">
               <button 
                 onClick={jumpToLibrary}
-                className="lg:hidden text-xs flex items-center gap-1 bg-cyan-900/30 hover:bg-cyan-900/50 text-cyan-400 py-1.5 px-3 rounded-md transition-colors border border-cyan-800/50"
+                className="lg:hidden text-xs flex items-center gap-1 bg-cyan-50 dark:bg-cyan-900/30 hover:bg-cyan-50 dark:hover:bg-cyan-900/50 text-cyan-600 dark:text-cyan-400 py-1.5 px-3 rounded-md transition-colors border border-cyan-200 dark:border-cyan-800/50"
               >
-                <Plus size={14} /> Add Song
+                <Plus size={14} /> Ajouter une chanson
               </button>
               <button 
                 onClick={handleAddTextNote}
-                className="text-xs flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-1.5 px-3 rounded-md transition-colors border border-slate-700 hover:border-slate-500"
+                className="text-xs flex items-center gap-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-1.5 px-3 rounded-md transition-colors border border-slate-300 dark:border-slate-700 hover:border-slate-500"
               >
-                <Type size={14} /> <span className="hidden xs:inline">Add Note</span><span className="xs:hidden">Note</span>
+                <Type size={14} /> <span className="hidden xs:inline">Ajouter une note</span><span className="xs:hidden">Note</span>
               </button>
             </div>
           )}
-          {isVirtual && <div className="text-xs text-pink-500 font-bold uppercase tracking-wider">Viewing favorites</div>}
+          {isVirtual && <div className="text-xs text-pink-500 font-bold uppercase tracking-wider">Vos favoris</div>}
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 space-y-2">
@@ -1048,15 +1048,15 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
               onDragEnter={(e) => handleDragEnter(e, index)}
               onDragEnd={handleDragEnd}
               onDragOver={(e) => e.preventDefault()}
-              className={`flex items-center gap-3 bg-slate-950 border border-slate-800 p-3 rounded-lg group hover:border-slate-700 ${!isVirtual ? 'cursor-move' : 'cursor-default'}`}
+              className={`flex items-center gap-3 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-lg group hover:border-slate-300 dark:hover:border-slate-700 ${!isVirtual ? 'cursor-move' : 'cursor-default'}`}
             >
-              <div className="flex flex-col items-center justify-center w-10 text-slate-600 gap-0.5 border-r border-slate-800/50 mr-1">
+              <div className="flex flex-col items-center justify-center w-10 text-slate-600 gap-0.5 border-r border-slate-200/50 dark:border-slate-800/50 mr-1">
                 {!isVirtual && (
                   <button 
                     onClick={() => moveItem(index, index - 1)}
                     disabled={index === 0}
-                    className="p-2 hover:text-cyan-400 disabled:opacity-0 transition-all focus:outline-none active:scale-125"
-                    title="Move Up"
+                    className="p-2 hover:text-cyan-600 dark:hover:text-cyan-400 disabled:opacity-0 transition-all focus:outline-none active:scale-125"
+                    title="Monter"
                   >
                     <ChevronUp size={20} />
                   </button>
@@ -1066,35 +1066,35 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
                   <button 
                     onClick={() => moveItem(index, index + 1)}
                     disabled={index === setlistItems.length - 1}
-                    className="p-2 hover:text-cyan-400 disabled:opacity-0 transition-all focus:outline-none active:scale-125"
-                    title="Move Down"
+                    className="p-2 hover:text-cyan-600 dark:hover:text-cyan-400 disabled:opacity-0 transition-all focus:outline-none active:scale-125"
+                    title="Descendre"
                   >
                     <ChevronDown size={20} />
                   </button>
                 )}
-                {!isVirtual && <GripVertical className="cursor-grab hover:text-slate-400 mt-1 shrink-0 md:block hidden" style={{ touchAction: 'none' }} size={14} />}
+                {!isVirtual && <GripVertical className="cursor-grab hover:text-slate-600 dark:hover:text-slate-400 mt-1 shrink-0 md:block hidden" style={{ touchAction: 'none' }} size={14} />}
               </div>
 
               {item.type === 'song' ? (
                 <>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-white break-words sm:truncate">{item.song.title}</div>
+                    <div className="font-medium text-ink dark:text-white break-words sm:truncate">{item.song.title}</div>
                     <div className="text-xs text-slate-500 break-words sm:truncate">{item.song.artist} • Original: {item.song.key}</div>
                   </div>
 
-                  <div className="flex items-center bg-slate-900 rounded border border-slate-800 mr-2">
+                  <div className="flex items-center bg-slate-50 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-800 mr-2">
                     <button
                       onClick={() => updateItemTranspose(item.id, item.transpose - 1)}
-                      className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white"
+                      className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white"
                     >
                       <Minus size={14} />
                     </button>
-                    <div className={`w-8 text-center text-xs font-mono font-bold ${item.transpose !== 0 ? 'text-cyan-400' : 'text-slate-500'}`}>
+                    <div className={`w-8 text-center text-xs font-mono font-bold ${item.transpose !== 0 ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-500'}`}>
                       {item.transpose > 0 ? '+' : ''}{item.transpose}
                     </div>
                     <button
                       onClick={() => updateItemTranspose(item.id, item.transpose + 1)}
-                      className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white"
+                      className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white"
                     >
                       <Plus size={14} />
                     </button>
@@ -1111,7 +1111,7 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
                   {!isVirtual && (
                     <button 
                       onClick={() => handleEditNote(item)}
-                      className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded-md mr-2"
+                      className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white rounded-md mr-2"
                     >
                       <Edit2 size={14} />
                     </button>
@@ -1122,7 +1122,7 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
               {!isVirtual && (
                   <button
                     onClick={() => removeItemFromSetlist(item.id)}
-                    className="text-slate-600 hover:text-red-400 md:opacity-0 group-hover:opacity-100 transition-opacity p-2 ml-auto"
+                    className="text-slate-600 hover:text-red-600 dark:hover:text-red-400 md:opacity-0 group-hover:opacity-100 transition-opacity p-2 ml-auto"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -1133,17 +1133,17 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
       </div>
 
       {!isVirtual && (
-      <div ref={libraryRef} className="w-full lg:w-5/12 flex flex-col bg-slate-900 border border-slate-800 rounded-xl overflow-hidden min-h-[400px]">
-          <div className="p-4 border-b border-slate-800 bg-slate-900/50">
-            <h3 className="font-bold text-white mb-3">Song Library</h3>
+      <div ref={libraryRef} className="w-full lg:w-5/12 flex flex-col bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden min-h-[400px]">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+            <h3 className="font-bold text-ink dark:text-white mb-3">Bibliothèque</h3>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
               <input
                 type="text"
-                placeholder="Search library..."
+                placeholder="Chercher dans la bibliothèque…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 pl-10 pr-4 text-sm text-slate-300 focus:outline-none focus:border-cyan-500"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg py-2 pl-10 pr-4 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:border-cyan-500"
               />
             </div>
           </div>
@@ -1157,14 +1157,14 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
               )
               .slice(0, 30)
               .map(song => (
-                <div key={song.id} className="flex items-center justify-between p-3 hover:bg-slate-800 rounded-lg transition-colors group">
+                <div key={song.id} className="flex items-center justify-between p-3 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors group">
                   <div className="min-w-0">
-                    <div className="font-medium text-slate-200 truncate group-hover:text-white">{song.title}</div>
+                    <div className="font-medium text-slate-700 dark:text-slate-200 truncate group-hover:text-ink dark:group-hover:text-white">{song.title}</div>
                     <div className="text-xs text-slate-500">{song.artist}</div>
                   </div>
                   <button
                     onClick={() => addSongToSetlist(song)}
-                    className="p-2 sm:p-1.5 bg-slate-800 hover:bg-cyan-600 hover:text-white text-cyan-500 rounded-md transition-colors border border-slate-700 hover:border-cyan-500"
+                    className="p-2 sm:p-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-cyan-600 hover:text-white text-cyan-500 rounded-md transition-colors border border-slate-300 dark:border-slate-700 hover:border-cyan-500"
                   >
                     <Plus size={18} />
                   </button>
@@ -1176,9 +1176,9 @@ const isVirtual = currentSetlist?.id === FAVORITES_ID;
       )}
 
       {isVirtual && (
-        <div className="w-full lg:w-5/12 flex flex-col items-center justify-center bg-slate-900/50 border border-dashed border-slate-800 rounded-xl p-10 text-center">
+        <div className="w-full lg:w-5/12 flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-900/50 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-10 text-center">
           <Heart size={48} className="text-pink-500/20 mb-4" />
-          <h4 className="text-white font-bold mb-2">Dynamic List</h4>
+          <h4 className="text-ink dark:text-white font-bold mb-2">Liste dynamique</h4>
           <p className="text-slate-500 text-sm leading-relaxed">
             This list automatically updates whenever you favorite or unfavorite a song in the library.
             Changes to transposition here are local to this session.

@@ -20,20 +20,16 @@ import BottomNav from './components/BottomNav';
 import ChangelogPage from './components/ChangelogPage';
 import EmailConfirmPage from './components/EmailConfirmPage';
 import ResetPasswordPage from './components/ResetPasswordPage';
+import HomeDashboard from './components/HomeDashboard';
 import { 
-  Minus, 
-  Plus, 
-  Hash, 
-  Type, 
   Loader2, 
-  PanelLeft, 
   ListMusic,
   Lock,
   ArrowRight,
   Download,
-  X,
-  Smartphone
+  X
 } from 'lucide-react';
+import { LogoMark } from './components/ui/Brand';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -44,22 +40,22 @@ const App: React.FC = () => {
   // Theme State
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') as 'light' | 'dark' || 'dark';
+      return localStorage.getItem('theme') as 'light' | 'dark' || 'light';
     }
-    return 'dark';
+    return 'light';
   });
   
   // Navigation & UI State
   const [currentSongId, setCurrentSongId] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<'landing' | 'main' | 'editor' | 'profile' | 'setlists' | 'groups' | 'search' | 'help' | 'chord-dictionary' | 'progressions' | 'email-confirmed' | 'reset-password' | 'changelog'>('landing');
   const [initialSearchQuery, setInitialSearchQuery] = useState('');
+  const [libraryFilter, setLibraryFilter] = useState<'all' | 'favorites'>('all');
   const [transpose, setTranspose] = useState(0);
   const [notationMode, setNotationMode] = useState<NotationMode>(NotationMode.LETTERS);
   const [showAuthModal, setShowAuthModal] = useState(false);
   
   // Responsive State
   const [isMobile, setIsMobile] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Apply Theme Effect
   useEffect(() => {
@@ -115,9 +111,6 @@ const App: React.FC = () => {
     const handleResize = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      if (mobile) {
-        setIsSidebarOpen(false);
-      }
     };
     handleResize();
     window.addEventListener('resize', handleResize);
@@ -251,6 +244,20 @@ const App: React.FC = () => {
     setTranspose(prev => prev + delta);
   };
 
+  const openSong = (id: string) => {
+    setCurrentSongId(id);
+    setCurrentView('main');
+    setTranspose(0);
+  };
+
+  const openLibrary = (query = '', favoritesOnly = false) => {
+    setInitialSearchQuery(query);
+    setLibraryFilter(favoritesOnly ? 'favorites' : 'all');
+    setCurrentView('search');
+  };
+
+  const favoriteIds = useMemo(() => new Set(songs.filter(s => s.is_favorite).map(s => s.id)), [songs]);
+
   const allExistingTags = useMemo(() => {
     const tags = new Set<string>();
     songs.forEach(s => s.tags?.forEach(t => tags.add(t)));
@@ -262,21 +269,19 @@ const App: React.FC = () => {
     : publicSongData;
 
   const AuthRequiredState = ({ title, desc }: { title: string, desc: string }) => (
-    <div className="h-full flex flex-col items-center justify-center p-6 text-center relative overflow-hidden bg-white dark:bg-slate-950">
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-cyan-500/10 blur-[100px] rounded-full"></div>
-      <div className="relative z-10 max-w-sm">
-        <div className="w-20 h-20 bg-slate-100 dark:bg-slate-900 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl border border-slate-200 dark:border-slate-800">
-          <Lock className="text-cyan-500" size={32} />
-        </div>
-        <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-4 tracking-tight">{title}</h2>
-        <p className="text-slate-500 dark:text-slate-400 mb-10 leading-relaxed font-medium">
-          {desc}
-        </p>
+    <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
+      <div className="max-w-md w-full flex flex-col gap-4 p-8 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+        <span className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-cyan-100 dark:bg-cyan-900 text-cyan-600 dark:text-cyan-400">
+          <Lock size={22} />
+        </span>
+        <h2 className="m-0 font-display font-extrabold text-[28px] leading-tight">{title}</h2>
+        <p className="m-0 text-slate-600 dark:text-slate-400">{desc}</p>
         <button 
+          type="button"
           onClick={() => setShowAuthModal(true)}
-          className="w-full flex items-center justify-center gap-2 px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white rounded-2xl font-bold transition-all shadow-lg shadow-cyan-900/20 active:scale-95"
+          className="mt-2 flex items-center justify-center gap-2 h-12 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white font-semibold transition-colors"
         >
-          Unlock with Account <ArrowRight size={20} />
+          Se connecter ou créer un compte <ArrowRight size={18} />
         </button>
       </div>
     </div>
@@ -285,16 +290,13 @@ const App: React.FC = () => {
   const renderMainContent = () => {
     if (currentView === 'landing') {
       return (
-        <LandingPage 
-          onNavigate={(view, query) => {
-            if (query) setInitialSearchQuery(query);
-            setCurrentView(view as any);
-          }}
-          onSelectSong={(id) => { 
-            setCurrentSongId(id); 
-            setCurrentView('main'); 
-            setTranspose(0);
-          }} 
+        <HomeDashboard
+          session={session}
+          songs={songs}
+          groups={groups}
+          onSelectSong={openSong}
+          onNavigate={setCurrentView}
+          onOpenLibrary={(fav) => openLibrary('', !!fav)}
         />
       );
     }
@@ -321,10 +323,12 @@ const App: React.FC = () => {
           session={session}
           isAdmin={isAdmin}
           initialQuery={initialSearchQuery}
+          favoritesOnly={libraryFilter === 'favorites'}
+          favoriteIds={favoriteIds}
+          onToggleFavorite={session ? handleToggleFavorite : undefined}
+          onFavoritesOnlyChange={(v) => setLibraryFilter(v ? 'favorites' : 'all')}
           onSelectSong={(id) => {
-            setCurrentSongId(id);
-            setCurrentView('main');
-            setTranspose(0);
+            openSong(id);
             setInitialSearchQuery(''); 
           }}
           onAddSong={createNewSong}
@@ -333,7 +337,7 @@ const App: React.FC = () => {
     }
 
     if (currentView === 'profile') {
-      return session ? <Profile user={session.user} songs={songs} onNavigateToGroups={() => setCurrentView('groups')} /> : <AuthRequiredState title="Member Area" desc="Create an account to manage your profile, track your repertoire and sync across devices." />;
+      return session ? <Profile user={session.user} songs={songs} onNavigateToGroups={() => setCurrentView('groups')} /> : <AuthRequiredState title="Votre profil" desc="Créez un compte pour gérer votre profil, suivre votre répertoire et le retrouver sur tous vos appareils." />;
     }
 
     if (currentView === 'setlists') {
@@ -345,7 +349,7 @@ const App: React.FC = () => {
           onBack={() => setCurrentView('landing')}
           onSaveSong={handleSaveSong}
         />
-      ) : <AuthRequiredState title="Gig Planner" desc="Join the community to create professional setlists, organize your performances and collaborate with your band." />;
+      ) : <AuthRequiredState title="Setlists" desc="Connectez-vous pour préparer l'ordre de vos concerts et répétitions, et les partager avec votre groupe." />;
     }
 
     if (currentView === 'groups') {
@@ -354,7 +358,7 @@ const App: React.FC = () => {
           user={session.user}
           onClose={() => setCurrentView('landing')}
         />
-      ) : <AuthRequiredState title="Collaboration Hub" desc="Connect with your fellow musicians. Create bands, share arrangements and plan rehearsals together." />;
+      ) : <AuthRequiredState title="Groupes" desc="Invitez les membres de votre groupe, partagez vos arrangements et préparez les répétitions ensemble." />;
     }
 
     if (currentView === 'editor') {
@@ -369,7 +373,7 @@ const App: React.FC = () => {
             setCurrentView('main');
           }}
         />
-      ) : <AuthRequiredState title="Song Editor" desc="Please sign in to create and edit professional song sheets in your private library." />;
+      ) : <AuthRequiredState title="Éditeur de chanson" desc="Connectez-vous pour créer et modifier vos fiches de chansons." />;
     }
 
     if (currentSong) {
@@ -384,14 +388,19 @@ const App: React.FC = () => {
           onOpenAuth={() => setShowAuthModal(true)}
           onEdit={() => setCurrentView('editor')}
           onDelete={handleDeleteSong}
+          onTransposeChange={changeTranspose}
+          onTransposeReset={() => setTranspose(0)}
+          onNotationModeChange={setNotationMode}
+          onBack={() => openLibrary()}
         />
       );
     }
 
     return (
-      <div className="h-full flex flex-col items-center justify-center text-slate-500">
-        <ListMusic size={64} className="mb-4 opacity-20" />
-        <p className="text-lg">Select a song to start.</p>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 text-slate-500 px-4 text-center">
+        <ListMusic size={48} className="opacity-40" />
+        <p className="text-lg m-0">Choisissez une chanson pour commencer.</p>
+        <button type="button" onClick={() => openLibrary()} className="h-11 px-4 rounded-md border border-slate-300 dark:border-slate-700 font-semibold text-ink dark:text-slate-100">Ouvrir la bibliothèque</button>
       </div>
     );
   };
@@ -406,48 +415,74 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-cyan-600 dark:text-cyan-500">
-        <Loader2 className="animate-spin" size={48} />
+      <div className="h-screen bg-slate-100 dark:bg-slate-950 flex flex-col items-center justify-center gap-4 text-cyan-600 dark:text-cyan-400">
+        <LogoMark size={40} />
+        <Loader2 className="animate-spin" size={24} />
+      </div>
+    );
+  }
+
+  const installBanner = showInstallBanner && (
+    <div role="dialog" aria-label="Installer l'application" className="fixed top-4 left-4 right-4 md:left-auto md:w-[400px] z-[100] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-2xl flex items-center justify-between gap-3">
+      <div className="flex items-center gap-3 min-w-0">
+        <LogoMark size={36} />
+        <div className="min-w-0">
+          <div className="font-semibold">Installer Unison</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">Accès rapide et mode hors ligne</div>
+        </div>
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <button 
+          type="button"
+          onClick={handleInstallClick}
+          className="inline-flex items-center gap-1.5 h-10 px-3 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-semibold"
+        >
+          <Download size={14} /> {deferredPrompt ? 'Installer' : 'Comment ?'}
+        </button>
+        <button 
+          type="button"
+          aria-label="Fermer"
+          onClick={() => {
+            setShowInstallBanner(false);
+            sessionStorage.setItem('pwa_banner_dismissed', 'true');
+          }}
+          className="w-10 h-10 inline-flex items-center justify-center rounded-md text-slate-500 hover:text-ink dark:hover:text-slate-100"
+        >
+          <X size={18} />
+        </button>
+      </div>
+    </div>
+  );
+
+  // Visitors land on the full-bleed marketing page (no sidebar).
+  if (!session && currentView === 'landing') {
+    return (
+      <div className="h-screen overflow-y-auto bg-slate-100 dark:bg-slate-950">
+        {showAuthModal && <Auth onClose={() => setShowAuthModal(false)} />}
+        {installBanner}
+        <LandingPage
+          theme={theme}
+          toggleTheme={toggleTheme}
+          onOpenAuth={() => setShowAuthModal(true)}
+          onRandomSong={handleRandomSong}
+          onNavigate={(view, query) => {
+            if (view === 'search') { openLibrary(query || ''); return; }
+            setCurrentView(view as any);
+          }}
+          onSelectSong={openSong}
+        />
+        {isMobile && (
+          <BottomNav currentView={currentView} onNavigate={setCurrentView} pendingInvitesCount={pendingInvitesCount} />
+        )}
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 font-sans overflow-hidden transition-colors duration-300">
+    <div className="flex h-screen bg-slate-100 dark:bg-slate-950 text-ink dark:text-slate-100 font-sans overflow-hidden transition-colors duration-300">
       
       {showAuthModal && <Auth onClose={() => setShowAuthModal(false)} />}
-      
-      {/* Enhanced PWA Install Banner */}
-      {showInstallBanner && (
-        <div className="fixed top-20 left-4 right-4 z-[100] bg-white dark:bg-slate-900 border-2 border-cyan-500/30 rounded-2xl p-4 shadow-2xl flex items-center justify-between animate-in slide-in-from-top-10 duration-500 ring-4 ring-cyan-500/5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-600 to-purple-600 flex items-center justify-center shadow-lg">
-              <Smartphone className="text-white" size={20} />
-            </div>
-            <div>
-              <div className="text-sm font-bold text-slate-900 dark:text-white">Installer Unison App</div>
-              <div className="text-[10px] text-slate-500 font-medium">Meilleure expérience et mode hors-ligne</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={handleInstallClick}
-              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold shadow-md active:scale-95 transition-all flex items-center gap-1.5"
-            >
-              <Download size={14} /> {deferredPrompt ? 'Installer' : 'Aide'}
-            </button>
-            <button 
-              onClick={() => {
-                setShowInstallBanner(false);
-                sessionStorage.setItem('pwa_banner_dismissed', 'true');
-              }}
-              className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        </div>
-      )}
+      {installBanner}
       
       {!isMobile && (
         <Sidebar 
@@ -457,89 +492,48 @@ const App: React.FC = () => {
           pendingInvitesCount={pendingInvitesCount}
           currentSongId={currentSongId}
           currentView={currentView}
-          isSidebarOpen={isSidebarOpen}
-          onCloseMobile={() => {}}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          libraryFilter={libraryFilter}
           onNavigate={setCurrentView}
-          onSelectSong={(id) => {
-            setCurrentSongId(id);
-            setCurrentView('main');
-            setTranspose(0);
-          }}
+          onSearch={(q, fav) => openLibrary(q, !!fav)}
+          onSelectSong={openSong}
+          onRandomSong={handleRandomSong}
           onSignOut={handleSignOut}
           onOpenAuth={() => setShowAuthModal(true)}
           onCreateSong={createNewSong}
         />
       )}
 
-      <main className="flex-1 flex flex-col h-full relative min-w-0 bg-white dark:bg-slate-950 transition-colors duration-300">
-        <Navbar 
-          session={session}
-          songs={songs}
-          theme={theme}
-          toggleTheme={toggleTheme}
-          onOpenAuth={() => setShowAuthModal(true)}
-          onSignOut={handleSignOut}
-          onNavigateHome={() => { setCurrentView('landing'); setCurrentSongId(null); }}
-          onNavigateProfile={() => setCurrentView('profile')}
-          onNavigateSetlists={() => setCurrentView('setlists')}
-          onRandomSong={handleRandomSong}
-          onSelectSong={(id) => {
-            setCurrentSongId(id);
-            setCurrentView('main');
-            setTranspose(0);
-          }}
-        />
-
-        <header className="h-12 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-6 sticky top-0 z-20 shrink-0">
-          <div className="flex items-center gap-3">
-            {!isMobile && (
+      <main className="flex-1 flex flex-col h-full relative min-w-0 bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+        <div className="flex-1 overflow-y-auto w-full pb-24 md:pb-0">
+          {isMobile && (
+            <Navbar 
+              session={session}
+              songs={songs}
+              theme={theme}
+              toggleTheme={toggleTheme}
+              onOpenAuth={() => setShowAuthModal(true)}
+              onSignOut={handleSignOut}
+              onNavigateHome={() => { setCurrentView('landing'); setCurrentSongId(null); }}
+              onNavigateProfile={() => setCurrentView('profile')}
+              onNavigateSetlists={() => setCurrentView('setlists')}
+              onRandomSong={handleRandomSong}
+              onSelectSong={openSong}
+              onSearch={(q) => openLibrary(q)}
+            />
+          )}
+          {['landing', 'main', 'search'].includes(currentView) ? (
+            renderMainContent()
+          ) : (
+            <div className="max-w-[1280px] mx-auto px-4 md:px-10 py-6 md:py-10">{renderMainContent()}</div>
+          )}
+          {currentView !== 'changelog' && currentView !== 'main' && (
+            <footer className="px-4 md:px-10 py-4 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-end gap-4 text-sm">
               <button
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <PanelLeft size={18} />
-              </button>
-            )}
-            
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest truncate max-w-[150px] md:max-w-none">
-              {currentView === 'landing' && "Home"}
-              {currentView === 'search' && "Library"}
-              {currentView === 'main' && currentSong?.title}
-              {currentView === 'editor' && "Editor"}
-              {currentView === 'setlists' && "Setlists"}
-              {currentView === 'groups' && "Groups"}
-              {currentView === 'profile' && "Profile"}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {currentView === 'main' && currentSong && (
-              <div className="flex items-center gap-1 md:gap-2 scale-90 md:scale-100">
-                <div className="flex items-center bg-slate-200 dark:bg-slate-800 rounded-md p-0.5 border border-slate-300 dark:border-slate-700">
-                  <button onClick={() => changeTranspose(-1)} className="p-1 hover:bg-slate-300 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400"><Minus size={14} /></button>
-                  <div className="px-2 font-mono font-bold text-cyan-600 dark:text-cyan-400 text-[10px] md:text-xs">{transpose > 0 ? `+${transpose}` : transpose}</div>
-                  <button onClick={() => changeTranspose(1)} className="p-1 hover:bg-slate-300 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400"><Plus size={14} /></button>
-                </div>
-                <button 
-                  onClick={() => setNotationMode(m => m === NotationMode.LETTERS ? NotationMode.DEGREES : NotationMode.LETTERS)}
-                  className="p-1.5 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
-                >
-                  {notationMode === NotationMode.LETTERS ? <Hash size={14} /> : <Type size={14} />}
-                </button>
-              </div>
-            )}
-          </div>
-        </header>
-
-        <div className={`flex-1 overflow-y-auto scroll-smooth w-full pb-20 md:pb-6 ${currentView !== 'landing' ? 'px-4 sm:px-8 md:px-10 lg:px-16' : ''}`}>
-          <div className={currentView !== 'landing' ? 'max-w-[1600px] mx-auto py-6 md:py-10' : ''}>
-            {renderMainContent()}
-          </div>
-          {currentView !== 'changelog' && (
-            <footer className="px-4 sm:px-8 md:px-10 lg:px-16 py-4 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-end gap-4">
-              <button
+                type="button"
                 onClick={() => setCurrentView('changelog')}
-                className="text-xs text-slate-400 dark:text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors font-medium"
+                className="text-slate-500 dark:text-slate-400 hover:text-ink dark:hover:text-slate-100 underline-offset-[3px] hover:underline"
               >
                 Nouveautés v1.0.0
               </button>
@@ -547,7 +541,7 @@ const App: React.FC = () => {
                 href="https://east-motorcycle-1da.notion.site/Unison-le-guide-3321b961f5818087b54be8e98023bf67?source=copy_link"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs text-slate-400 dark:text-slate-500 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors font-medium"
+                className="text-slate-500 dark:text-slate-400 hover:text-ink dark:hover:text-slate-100 underline-offset-[3px] hover:underline"
               >
                 Documentation
               </a>

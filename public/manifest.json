@@ -8,8 +8,8 @@
   "scope": "/",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "minimal-ui"],
-  "background_color": "#020617",
-  "theme_color": "#0f172a",
+  "background_color": "#F1F2EE",
+  "theme_color": "#2440D6",
   "orientation": "any",
   "categories": ["music", "productivity"],
   "icons": [

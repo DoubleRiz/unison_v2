@@ -179,11 +179,11 @@ export const SetlistDocumentEditor: React.FC<SetlistDocumentEditorProps> = ({
             <EditorContent editor={editor} />
           </div>
           {showSongPicker && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 w-full max-w-md max-h-[80vh] flex flex-col">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60">
+              <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 w-full max-w-md max-h-[80vh] flex flex-col">
                 <div className="flex justify-between items-center mb-3">
-                  <h3 className="text-white font-bold">Insérer une chanson</h3>
-                  <button onClick={() => setShowSongPicker(false)} className="text-slate-400 hover:text-white">
+                  <h3 className="text-ink dark:text-white font-bold">Insérer une chanson</h3>
+                  <button onClick={() => setShowSongPicker(false)} className="text-slate-600 dark:text-slate-400 hover:text-ink dark:hover:text-white">
                     <X size={18} />
                   </button>
                 </div>
@@ -194,7 +194,7 @@ export const SetlistDocumentEditor: React.FC<SetlistDocumentEditorProps> = ({
                     placeholder="Rechercher..."
                     value={pickerQuery}
                     onChange={(e) => setPickerQuery(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 pl-10 pr-4 text-sm text-slate-300 focus:outline-none focus:border-cyan-500"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg py-2 pl-10 pr-4 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:border-cyan-500"
                   />
                 </div>
                 <div className="overflow-y-auto space-y-1">
@@ -208,9 +208,9 @@ export const SetlistDocumentEditor: React.FC<SetlistDocumentEditorProps> = ({
                       <button
                         key={song.id}
                         onClick={() => handleInsertSong(song)}
-                        className="w-full text-left p-2 hover:bg-slate-800 rounded-lg"
+                        className="w-full text-left p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg"
                       >
-                        <div className="text-white text-sm font-medium">{song.title}</div>
+                        <div className="text-ink dark:text-white text-sm font-medium">{song.title}</div>
                         <div className="text-xs text-slate-500">{song.artist}</div>
                       </button>
                     ))}

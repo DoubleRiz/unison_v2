@@ -1,13 +1,14 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Unison | Professional Music Sheets</title>
     
     <!-- PWA Primary Meta -->
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#F1F2EE" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#111318" media="(prefers-color-scheme: dark)" />
     <meta name="description" content="Professional musician's tool for song sheets and collaboration." />
     <link rel="manifest" href="/manifest.json" />
     
@@ -17,19 +18,86 @@
     <meta name="apple-mobile-web-app-title" content="Unison" />
     <link rel="apple-touch-icon" href="/icons/icon-512.png" />
     
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@500;700;800;900&family=Red+Hat+Mono:wght@400;500;700&family=Red+Hat+Text:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
+      /*
+       * Unison design tokens.
+       * The whole app was written against Tailwind's `slate` (neutrals) and `cyan` (accent)
+       * palettes; they are remapped here onto the Unison system so every screen
+       * picks up the warm-paper neutrals and the ink-blue accent.
+       *   light: ground #F1F2EE · surface #FBFBF9 · ink #16181D · line #D5D8D0 · accent #2440D6
+       *   dark : ground #111318 · surface #171A20 · ink #ECEDE9 · line #2A2E36 · accent #93A5FF
+       */
+      const accent = {
+        50: '#EEF1FD', 100: '#E2E7FC', 200: '#C3CDF9', 300: '#B8C4FF', 400: '#93A5FF',
+        500: '#3651E0', 600: '#2440D6', 700: '#1A2FA8', 800: '#16258A', 900: '#1E2547', 950: '#151A33'
+      };
+      const red = {
+        50: '#FBEAE6', 100: '#FBE3DE', 200: '#F4C3B9', 300: '#FF9A88', 400: '#FF6B54',
+        500: '#D3402A', 600: '#B5321F', 700: '#9E2C1B', 800: '#6E2014', 900: '#3A1712', 950: '#24100C'
+      };
+      const amber = {
+        50: '#FBF4E8', 100: '#FDEFCF', 200: '#F6ECD8', 300: '#E3CFA5', 400: '#F5B83D',
+        500: '#F5B83D', 600: '#A86D12', 700: '#7E520D', 800: '#5E420A', 900: '#3A2A0C', 950: '#241A07'
+      };
+      const green = {
+        50: '#E3F1E8', 100: '#DDF0E3', 200: '#BFE2CB', 300: '#8FCDA6', 400: '#5CB884',
+        500: '#2C7A4B', 600: '#2C7A4B', 700: '#1F5C37', 800: '#174528', 900: '#13301F', 950: '#0C1F14'
+      };
+      const violet = {
+        50: '#F4EFFC', 100: '#ECE4FA', 200: '#D8C8F4', 300: '#C2A9F0', 400: '#A98AEB',
+        500: '#6D3FC8', 600: '#6D3FC8', 700: '#5631A0', 800: '#41257A', 900: '#261A40', 950: '#1A1230'
+      };
+      const teal = {
+        50: '#E8F5F6', 100: '#D7EEF0', 200: '#AEDCE0', 300: '#7CC6CD', 400: '#4FB0B9',
+        500: '#0E7C86', 600: '#0E7C86', 700: '#0A5E66', 800: '#08474D', 900: '#0B2A2D', 950: '#071C1E'
+      };
       tailwind.config = {
         darkMode: 'class',
         theme: {
           extend: {
             colors: {
+              white: '#FBFBF9',
+              black: '#16181D',
               slate: {
-                850: '#151e2e',
-                900: '#0f172a',
-                950: '#020617',
-              }
-            }
+                50: '#FBFBF9', 100: '#F1F2EE', 200: '#D5D8D0', 300: '#C4C8BE', 400: '#8E939C',
+                500: '#686D76', 600: '#4A4F59', 700: '#3A3F49', 800: '#2A2E36', 850: '#1E2128',
+                900: '#171A20', 950: '#111318'
+              },
+              gray: { 50: '#FBFBF9', 100: '#F1F2EE', 200: '#D5D8D0', 300: '#C4C8BE', 400: '#8E939C', 500: '#686D76', 600: '#4A4F59', 700: '#3A3F49', 800: '#2A2E36', 900: '#171A20', 950: '#111318' },
+              cyan: accent, blue: accent, indigo: accent, sky: accent,
+              red, rose: red, pink: red, fuchsia: violet,
+              purple: violet, violet,
+              yellow: amber, amber, orange: amber,
+              green, emerald: green, lime: green,
+              teal,
+              ink: '#16181D',
+              paper: '#FBFBF9',
+              ground: '#F1F2EE',
+              stage: '#111318',
+              signal: '#D3402A'
+            },
+            fontFamily: {
+              sans: ['"Red Hat Text"', 'system-ui', 'sans-serif'],
+              display: ['"Red Hat Display"', '"Red Hat Text"', 'system-ui', 'sans-serif'],
+              mono: ['"Red Hat Mono"', 'ui-monospace', 'monospace']
+            },
+            borderRadius: {
+              sm: '2px', DEFAULT: '3px', md: '4px', lg: '4px', xl: '6px', '2xl': '8px', '3xl': '10px'
+            },
+            boxShadow: {
+              sm: '0 1px 0 rgba(22,24,29,0.04)',
+              DEFAULT: '0 1px 2px rgba(22,24,29,0.06)',
+              md: '0 2px 6px rgba(22,24,29,0.06)',
+              lg: '0 4px 14px rgba(22,24,29,0.08)',
+              xl: '0 8px 24px rgba(22,24,29,0.10)',
+              '2xl': '0 16px 40px rgba(22,24,29,0.16)',
+              inner: 'inset 0 1px 2px rgba(22,24,29,0.06)'
+            },
+            letterSpacing: { tighter: '-0.035em', tight: '-0.02em', widest: '0.08em' }
           }
         }
       }
@@ -39,6 +107,8 @@
       body {
         overscroll-behavior-y: none;
         -webkit-tap-highlight-color: transparent;
+        font-family: "Red Hat Text", system-ui, sans-serif;
+        line-height: 1.5;
       }
       /* Ensure full height on mobile */
       html, body, #root {
@@ -46,10 +116,32 @@
         margin: 0;
         padding: 0;
       }
+      /* Display face for headings and heavy weights */
+      h1, h2, h3, .font-black, .font-display {
+        font-family: "Red Hat Display", "Red Hat Text", system-ui, sans-serif;
+        letter-spacing: -0.02em;
+      }
+      h1.font-black, .font-black { font-weight: 800; }
+      .font-mono { letter-spacing: 0; }
+      /* Uppercase micro-labels: Unison uses 0.08em tracking, not Tailwind's wider defaults */
+      .uppercase.tracking-widest, .uppercase.tracking-wider, .uppercase[class*="tracking-[0."] { letter-spacing: 0.08em; }
+      /* Accessible focus ring in the accent colour */
+      :focus-visible { outline: 2px solid #2440D6; outline-offset: 2px; }
+      .dark :focus-visible { outline-color: #93A5FF; }
+      ::selection { background: #E2E7FC; color: #1A2FA8; }
+      .dark ::selection { background: #1E2547; color: #ECEDE9; }
+      /* Quiet scrollbars */
+      * { scrollbar-width: thin; scrollbar-color: #C4C8BE transparent; }
+      .dark * { scrollbar-color: #3A3F49 transparent; }
+      .scrollbar-hide { scrollbar-width: none; }
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      /* Coloured buttons keep a crisp white label */
+      .bg-cyan-600.text-white, .bg-cyan-500.text-white, .bg-red-600.text-white, .bg-red-500.text-white,
+      .bg-purple-600.text-white, .bg-green-600.text-white, .bg-signal.text-white { color: #FFFFFF; }
       /* Rich-text styling for the setlist document editor (TipTap) */
-      .tiptap h1 { font-size: 1.875rem; font-weight: 700; line-height: 1.3; margin: 0.5em 0; }
+      .tiptap h1 { font-size: 1.875rem; font-weight: 800; line-height: 1.3; margin: 0.5em 0; }
       .tiptap h2 { font-size: 1.5rem; font-weight: 700; line-height: 1.3; margin: 0.5em 0; }
-      .tiptap h3 { font-size: 1.25rem; font-weight: 600; line-height: 1.3; margin: 0.5em 0; }
+      .tiptap h3 { font-size: 1.25rem; font-weight: 700; line-height: 1.3; margin: 0.5em 0; }
       .tiptap p { margin: 0.5em 0; }
       .tiptap ul, .tiptap ol { padding-left: 1.5em; margin: 0.5em 0; }
       .tiptap ul { list-style-type: disc; }
@@ -70,7 +162,7 @@
 }
 </script>
 </head>
-  <body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 antialiased transition-colors duration-300">
+  <body class="bg-slate-100 dark:bg-slate-950 text-ink dark:text-slate-100 antialiased transition-colors duration-300">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

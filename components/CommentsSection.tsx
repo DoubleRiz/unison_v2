@@ -72,86 +72,72 @@ const CommentsSection: React.FC<CommentsSectionProps> = ({ songId, session, onOp
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' ' + date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
-    <div className="mt-12 pt-8 border-t border-slate-800">
-      <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
-        <MessageSquare className="text-cyan-500" size={20} />
-        Comments & Suggestions <span className="text-slate-500 text-sm font-normal">({comments.length})</span>
-      </h3>
+    <section className="flex flex-col gap-3">
+      <h2 className="m-0 font-sans text-xs font-semibold uppercase text-slate-500 dark:text-slate-400" style={{ letterSpacing: '0.08em' }}>
+        Commentaires · {comments.length}
+      </h2>
 
-      {/* List */}
-      <div className="space-y-6 mb-8">
+      <div className="flex flex-col">
         {loading ? (
-          <div className="text-slate-500 text-sm">Loading comments...</div>
+          <p className="m-0 py-3 border-t border-slate-200 dark:border-slate-800 text-sm text-slate-500">Chargement…</p>
         ) : comments.length === 0 ? (
-          <div className="text-slate-500 text-sm italic">No comments yet. Be the first to suggest something!</div>
+          <p className="m-0 py-3 border-t border-slate-200 dark:border-slate-800 text-sm text-slate-500">Aucun commentaire pour l'instant.</p>
         ) : (
           comments.map(comment => (
-            <div key={comment.id} className="flex gap-4 group">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden">
-                {comment.user?.avatar_url ? (
-                  <img src={comment.user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-                ) : (
-                  <User size={18} className="text-slate-400" />
+            <div key={comment.id} className="group flex flex-col gap-1 py-3 border-t border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between gap-2">
+                <p className="m-0 text-sm">
+                  <b>{comment.user?.username || 'Membre'}</b>{' '}
+                  <span className="text-slate-500">· {formatDate(comment.created_at)}</span>
+                </p>
+                {session && session.user.id === comment.user_id && (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(comment.id)}
+                    aria-label="Supprimer le commentaire"
+                    className="w-8 h-8 inline-flex items-center justify-center rounded text-slate-500 hover:text-red-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 )}
               </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-200 text-sm">{comment.user?.username || 'Unknown User'}</span>
-                    <span className="text-xs text-slate-500">{formatDate(comment.created_at)}</span>
-                  </div>
-                  {session && session.user.id === comment.user_id && (
-                    <button 
-                      onClick={() => handleDelete(comment.id)}
-                      className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-                <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap bg-slate-900/50 p-3 rounded-lg border border-slate-800/50">
-                  {comment.content}
-                </div>
-              </div>
+              <p className="m-0 text-slate-600 dark:text-slate-300 whitespace-pre-wrap">{comment.content}</p>
             </div>
           ))
         )}
       </div>
 
-      {/* Input */}
-      <div className="flex gap-4">
-        <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex-shrink-0 flex items-center justify-center">
-           {session?.user?.user_metadata?.avatar_url ? (
-             <img src={session.user.user_metadata.avatar_url} className="w-full h-full rounded-full object-cover"/>
-           ) : <User size={18} className="text-slate-500"/>}
-        </div>
-        <form onSubmit={handleSubmit} className="flex-1 relative">
-          <textarea
-            value={newComment}
-            onChange={(e) => setNewComment(e.target.value)}
-            placeholder={session ? "Add a suggestion or comment..." : "Log in to add a suggestion..."}
-            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 pr-12 text-sm text-white focus:outline-none focus:border-cyan-500 min-h-[80px] resize-none"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(e);
-              }
-            }}
-          />
-          <button 
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+        <label htmlFor={`comment-${songId}`} className="sr-only">Ajouter un commentaire</label>
+        <textarea
+          id={`comment-${songId}`}
+          rows={2}
+          value={newComment}
+          onChange={(e) => setNewComment(e.target.value)}
+          placeholder={session ? 'Ajouter un commentaire' : 'Connectez-vous pour commenter'}
+          className="w-full resize-y px-3 py-2.5 rounded-md border border-slate-400 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-base outline-none focus:border-cyan-600 dark:focus:border-cyan-400"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit(e);
+            }
+          }}
+        />
+        {(newComment.trim() || !session) && (
+          <button
             type="submit"
-            disabled={submitting || (!session && !newComment)}
-            className="absolute bottom-3 right-3 p-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg disabled:opacity-50 disabled:bg-slate-800"
+            disabled={submitting}
+            className="self-start inline-flex items-center gap-2 h-9 px-3 rounded-md bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-semibold disabled:opacity-50"
           >
-            <Send size={16} />
+            <Send size={14} /> {session ? 'Publier' : 'Se connecter'}
           </button>
-        </form>
-      </div>
-    </div>
+        )}
+      </form>
+    </section>
   );
 };
 

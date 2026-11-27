@@ -26,7 +26,7 @@ Vues disponibles : `landing` (page marketing si déconnecté, `HomeDashboard` si
 App.tsx                    # Racine : gestion session, navigation, état global
 types.ts                   # Types partagés : Song, Setlist, Group, GroupMember, Comment, NotationMode
 hooks/useAppData.ts        # Fetch songs, groups, invites en fonction de la session
-lib/supabaseClient.ts      # Client Supabase (URL + anon key hardcodés)
+lib/supabaseClient.ts      # Client Supabase (VITE_SUPABASE_URL + VITE_SUPABASE_PUBLISHABLE_KEY depuis .env)
 utils/musicLogic.ts        # Logique musicale : transpose, degrés, détection sections
 constants/chordShapes.ts   # Voicings d'accords pour le dictionnaire
 components/

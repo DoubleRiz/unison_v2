@@ -29,3 +29,6 @@ db-backup/
 
 # Supabase CLI local cache
 supabase/.temp/
+
+# Export de données pour la migration Supabase
+supabase/migration-data/

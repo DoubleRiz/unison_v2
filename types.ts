@@ -6,7 +6,9 @@ export interface Song {
   artist: string;
   bpm: number | null;
   key: string; 
-  content: string; 
+  content: string;
+  /** `false` quand seule la fiche de liste est chargée (content/notes vides). Absent = complet. */
+  contentLoaded?: boolean;
   notes?: string; // Performance notes, verses, effect settings
   youtubeUrl?: string;
   audioUrl?: string;

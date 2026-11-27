@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Song, NotationMode } from './types';
 import { supabase } from './lib/supabaseClient';
 import { useAppData } from './hooks/useAppData';
+import { needsContent } from './utils/songRows';
 import Sidebar from './components/Sidebar';
 import SongSheet from './components/SongSheet';
 import SongEditor from './components/SongEditor';
@@ -156,7 +157,8 @@ const App: React.FC = () => {
     pendingInvitesCount, 
     loading, 
     publicSongData, 
-    isAdmin 
+    isAdmin,
+    loadSongDetails
   } = useAppData(session, authReady, currentView, currentSongId);
 
   const handleToggleFavorite = async (songId: string, isFav: boolean) => {
@@ -280,6 +282,18 @@ const App: React.FC = () => {
     ? (songs.find(s => s.id === currentSongId) || null)
     : publicSongData;
 
+  // La liste ne contient que les métadonnées : on charge le texte à l'ouverture.
+  const currentSongNeedsContent = !!currentSong && needsContent(currentSong);
+  useEffect(() => {
+    if (currentSong && currentSongNeedsContent) loadSongDetails([currentSong]);
+  }, [currentSong?.id, currentSongNeedsContent]);
+
+  const songLoadingState = (
+    <div className="min-h-[60vh] flex items-center justify-center text-slate-500 text-sm">
+      Chargement de la chanson…
+    </div>
+  );
+
   const AuthRequiredState = ({ title, desc }: { title: string, desc: string }) => (
     <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
       <div className="max-w-md w-full flex flex-col gap-4 p-8 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
@@ -360,6 +374,7 @@ const App: React.FC = () => {
           groups={groups}
           onBack={() => setCurrentView('landing')}
           onSaveSong={handleSaveSong}
+          loadSongDetails={loadSongDetails}
         />
       ) : <AuthRequiredState title="Setlists" desc="Connectez-vous pour préparer l'ordre de vos concerts et répétitions, et les partager avec votre groupe." />;
     }
@@ -375,6 +390,8 @@ const App: React.FC = () => {
     }
 
     if (currentView === 'editor') {
+      // Ne jamais ouvrir l'éditeur sur un texte vide : l'enregistrement l'écraserait.
+      if (session && currentSongId && currentSongNeedsContent) return songLoadingState;
       return session ? (
         <SongEditor 
           key={currentSongId || 'new'}
@@ -391,6 +408,7 @@ const App: React.FC = () => {
     }
 
     if (currentSong) {
+      if (currentSongNeedsContent) return songLoadingState;
       return (
         <SongSheet 
           song={currentSong} 

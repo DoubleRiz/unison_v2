@@ -194,6 +194,7 @@ const App: React.FC = () => {
         bpm: songData.bpm,
         original_key: songData.key,
         content: songData.content,
+        display_mode: songData.displayMode ?? null,
         notes: songData.notes,
         youtube_url: songData.youtubeUrl,
         audio_url: songData.audioUrl,

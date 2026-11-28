@@ -5,7 +5,7 @@ import { Song } from '../types';
  * et les notes, chargés à l'ouverture d'une chanson (voir `loadSongDetails`).
  */
 export const SONG_LIST_COLUMNS =
-  'id, user_id, title, artist, bpm, original_key, youtube_url, audio_url, is_public, shared_with_group_id, genres, tags, forked_from, created_at, updated_at';
+  'id, user_id, title, artist, bpm, original_key, display_mode, youtube_url, audio_url, is_public, shared_with_group_id, genres, tags, forked_from, created_at, updated_at';
 
 /** Colonnes chargées à l'ouverture d'une chanson. */
 export const SONG_DETAIL_COLUMNS = 'id, content, notes';
@@ -23,6 +23,7 @@ export const mapSongListRow = (row: any, favoriteIds: Set<string>): Song => ({
   key: row.original_key,
   content: '',
   contentLoaded: false,
+  displayMode: row.display_mode ?? null,
   youtubeUrl: row.youtube_url,
   audioUrl: row.audio_url,
   is_public: row.is_public,

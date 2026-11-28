@@ -48,6 +48,7 @@ export const useAppData = (session: any, authReady: boolean, currentView: string
         bpm: data.bpm,
         key: data.original_key,
         content: data.content,
+        displayMode: data.display_mode ?? null,
         notes: data.notes,
         youtubeUrl: data.youtube_url,
         audioUrl: data.audio_url,

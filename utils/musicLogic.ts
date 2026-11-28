@@ -7,6 +7,10 @@ const NOTE_MAPPINGS: Record<string, string> = {
   'Cb': 'B', 'Db': 'C#', 'Eb': 'D#', 'Fb': 'E', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#', 'E#': 'F', 'B#': 'C'
 };
 
+// Section names recognised inside brackets, e.g. [Refrain], [Strophe 2].
+export const SECTION_NAMES = 'Intro|Verse|Chorus|Refrain|Bridge|Pont|Pre-?Chorus|Pr[ée]-?refrain|Outro|Solo|Instrumental|Couplet|Strophe|Coda|Interlude|Final|R[ée]pons|R[ée]ponse';
+const SECTION_PREFIX = new RegExp(`^(${SECTION_NAMES})`, 'i');
+
 // Regex to parse a chord: Root (A-G plus #/b) + Quality (m, maj7, etc) + Bass (/F#)
 const CHORD_REGEX = /^([A-G][#b]?)(.*?)(\/[A-G][#b]?)?$/;
 
@@ -64,7 +68,7 @@ export const transposeContent = (content: string, semitones: number): string => 
   return content.replace(/\[(.*?)\]/g, (match, inner) => {
     // Check if it is a section header to avoid transposing "Chorus" to "Dhorus"
     // We check against common section names or if the inner text doesn't look like a chord
-    if (/^(Intro|Verse|Chorus|Refrain|Bridge|Pont|Pre-Chorus|Outro|Solo|Instrumental|Couplet|Strophe)/i.test(inner)) {
+    if (SECTION_PREFIX.test(inner)) {
        return match;
     }
 
@@ -140,7 +144,7 @@ export const convertToDegree = (chord: string, key: string): string => {
 export const getSectionType = (line: string): string | null => {
   const trimmed = line.trim();
   // Matches brackets containing common section names
-  const sectionRegex = /^\[(Intro|Verse|Chorus|Refrain|Bridge|Pont|Pre-Chorus|Outro|Solo|Instrumental|Couplet|Strophe).*\]$/i;
+  const sectionRegex = new RegExp(`^\\[(${SECTION_NAMES}).*\\]$`, 'i');
   const match = trimmed.match(sectionRegex);
   
   if (match) {

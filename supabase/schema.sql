@@ -55,6 +55,7 @@ create table public.songs (
   genres                text[] not null default '{}',
   tags                  text[] not null default '{}',
   forked_from           uuid references public.songs(id) on delete set null,
+  display_mode          text check (display_mode in ('classic', 'columns')),
   created_at            timestamptz not null default now(),
   updated_at            timestamptz not null default now()
 );

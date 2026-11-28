@@ -1,4 +1,7 @@
 
+/** classic: chords above the lyrics; columns: lyrics on the left, chords of the line on the right. */
+export type SongDisplayMode = 'classic' | 'columns';
+
 export interface Song {
   id: string;
   user_id?: string;
@@ -18,6 +21,8 @@ export interface Song {
   genres?: string[];
   tags?: string[];
   forked_from?: string | null;
+  /** Mode chosen by the creator. null: deduced from the content. */
+  displayMode?: SongDisplayMode | null;
 }
 
 export interface Comment {

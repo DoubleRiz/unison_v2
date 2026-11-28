@@ -1,8 +1,9 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Song, NotationMode } from '../types';
-import { transpose, convertToDegree, getSectionType, transposeContent } from '../utils/musicLogic';
-import { Heart, Trash2, AlertTriangle, Pencil, ZoomIn, ZoomOut, Play, Pause, Download, ChevronDown, ChevronUp } from 'lucide-react';
+import { Song, NotationMode, SongDisplayMode } from '../types';
+import { transpose, convertToDegree, getSectionType } from '../utils/musicLogic';
+import { detectSongFormat, parseSongRows, songChordList, toClassicContent, transposeSongContent } from '../utils/chordColumns';
+import { Heart, Trash2, AlertTriangle, Pencil, ZoomIn, ZoomOut, Play, Pause, Download, ChevronDown, ChevronUp, Smartphone, X } from 'lucide-react';
 import ChordVisualizer from './ChordVisualizer';
 import { GUITAR_DATA } from '../constants/chordShapes';
 import { KeyBadge } from './ui/Brand';
@@ -53,6 +54,25 @@ const SongSheet: React.FC<SongSheetProps> = ({
   const [fontSize, setFontSize] = useState(1.25); 
   const [showChords, setShowChords] = useState(true);
   const [isPinching, setIsPinching] = useState(false);
+
+  // Layout: the creator's choice, or the format the song is written in. The reader can switch.
+  const sourceFormat = useMemo(() => detectSongFormat(song.content), [song.content]);
+  const defaultLayout: SongDisplayMode = song.displayMode ?? sourceFormat;
+  const [layoutMode, setLayoutMode] = useState<SongDisplayMode>(defaultLayout);
+  useEffect(() => { setLayoutMode(defaultLayout); }, [song.id, defaultLayout]);
+  const isColumns = layoutMode === 'columns';
+
+  // Narrow portrait screens keep both columns, in smaller type, and suggest turning the phone.
+  const [isNarrowPortrait, setIsNarrowPortrait] = useState(false);
+  const [rotateHintDismissed, setRotateHintDismissed] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(max-width: 767px) and (orientation: portrait)');
+    const update = () => setIsNarrowPortrait(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   // Auto Scroll State & Refs
   const [isScrolling, setIsScrolling] = useState(false);
@@ -214,8 +234,15 @@ const SongSheet: React.FC<SongSheetProps> = ({
   const isOwner = session && session.user.id === song.user_id;
   const canEdit = isOwner || isAdmin;
   
+  // Classic renderer input: a column song is rebuilt with its chords above the lyrics.
+  const classicContent = useMemo(
+    () => toClassicContent(song.content),
+    [song.content, sourceFormat]
+  );
+  const columnRows = useMemo(() => parseSongRows(song.content), [song.content]);
+
   const parsedLines = useMemo(() => {
-    const lines = song.content.split('\n');
+    const lines = classicContent.split('\n');
     return lines.map(line => {
       const sectionType = getSectionType(line);
       if (sectionType) {
@@ -232,7 +259,7 @@ const SongSheet: React.FC<SongSheetProps> = ({
       }
       return { isSection: false, text: '', segments };
     });
-  }, [song.content]);
+  }, [classicContent]);
 
   const isChordLine = (segments: { chord: string | null; lyrics: string; span: number }[]) => {
     if (segments.length === 0) return false;
@@ -319,19 +346,50 @@ const SongSheet: React.FC<SongSheetProps> = ({
     cursorY += 12;
     doc.setFontSize(11);
 
-    const lines = transposeContent(song.content, transposeSemitones).split(/\r?\n/);
+    const drawSection = (name: string) => {
+      cursorY += 4;
+      doc.setFont(font, 'bold');
+      doc.setTextColor(22, 24, 29);
+      doc.text(clean(name.toUpperCase()), margin, cursorY);
+      cursorY += lineHeight;
+    };
+
+    if (isColumns) {
+      // Lyrics on the left, chords of the line in a column on the right.
+      const rows = parseSongRows(transposeSongContent(song.content, transposeSemitones));
+      doc.setFont(font, 'normal');
+      const widest = rows.reduce((max, r) =>
+        r.type === 'line' && r.chords.length ? Math.max(max, doc.getTextWidth(clean(r.lyrics))) : max, 0);
+      const chordX = margin + Math.min(widest + 8, 125);
+      rows.forEach(row => {
+        if (cursorY > pageBottom) { doc.addPage(); cursorY = 20; }
+        if (row.type === 'section') { drawSection(row.label); return; }
+        if (row.type === 'line') {
+          const lyricLines: string[] = row.lyrics ? doc.splitTextToSize(clean(row.lyrics), chordX - margin - 4) : [''];
+          doc.setFont(font, 'normal');
+          doc.setTextColor(22, 24, 29);
+          doc.text(lyricLines, margin, cursorY);
+          if (row.chords.length) {
+            doc.setFont(font, 'bold');
+            doc.setTextColor(36, 64, 214);
+            doc.text(clean(row.chords.join('  ')), chordX, cursorY);
+          }
+          cursorY += lineHeight * Math.max(1, lyricLines.length);
+          return;
+        }
+        cursorY += lineHeight;
+      });
+      const fileName = song.title.normalize('NFC').replace(/[\\/:*?"<>|]+/g, '-').trim() || 'chanson';
+      doc.save(`${fileName}.pdf`);
+      return;
+    }
+
+    const lines = transposeSongContent(classicContent, transposeSemitones).split(/\r?\n/);
     lines.forEach(line => {
       if (cursorY > pageBottom) { doc.addPage(); cursorY = 20; }
 
       const sectionName = getSectionType(line);
-      if (sectionName) {
-        cursorY += 4;
-        doc.setFont(font, 'bold');
-        doc.setTextColor(22, 24, 29);
-        doc.text(clean(sectionName.toUpperCase()), margin, cursorY);
-        cursorY += lineHeight;
-        return;
-      }
+      if (sectionName) { drawSection(sectionName); return; }
 
       // Render line with highlighted chords
       const parts = line.split(/\[(.*?)\]/g);
@@ -359,15 +417,10 @@ const SongSheet: React.FC<SongSheetProps> = ({
   // Unique chords of the song (transposed), for the diagrams aside.
   const songChords = useMemo(() => {
     const found: string[] = [];
-    const re = /\[(.*?)\]/g;
-    let m: RegExpExecArray | null;
-    for (const line of song.content.split('\n')) {
-      if (getSectionType(line)) continue;
-      while ((m = re.exec(line)) !== null) {
-        const c = transpose(m[1], transposeSemitones);
-        if (c && !found.includes(c)) found.push(c);
-      }
-    }
+    songChordList(song.content).forEach(chord => {
+      const c = transpose(chord, transposeSemitones);
+      if (c && !found.includes(c)) found.push(c);
+    });
     return found;
   }, [song.content, transposeSemitones]);
   const chordsWithShape = songChords.filter(c => GUITAR_DATA[c.split('/')[0]]);
@@ -507,6 +560,10 @@ const SongSheet: React.FC<SongSheetProps> = ({
                 <button type="button" aria-pressed={isDegrees} onClick={() => onNotationModeChange(NotationMode.DEGREES)} className={segBtn(isDegrees)}>Degrés</button>
               </div>
             )}
+            <div role="group" aria-label="Disposition des accords" className="inline-flex p-0.5 border border-slate-300 dark:border-slate-700 rounded-md bg-slate-50 dark:bg-slate-900">
+              <button type="button" aria-pressed={!isColumns} onClick={() => setLayoutMode('classic')} className={segBtn(!isColumns)} title="Accords au-dessus des paroles">Classique</button>
+              <button type="button" aria-pressed={isColumns} onClick={() => setLayoutMode('columns')} className={segBtn(isColumns)} title="Paroles à gauche, accords à droite">Colonnes</button>
+            </div>
             <button type="button" onClick={() => setShowChords(!showChords)} aria-pressed={!showChords} className={toolBtn}>
               {showChords ? 'Paroles seules' : 'Afficher les accords'}
             </button>
@@ -556,7 +613,61 @@ const SongSheet: React.FC<SongSheetProps> = ({
             </div>
           )}
 
-          {/* Sheet */}
+          {isColumns && isNarrowPortrait && showChords && !rotateHintDismissed && (
+            <div role="status" className="flex items-center gap-3 p-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-100 dark:bg-slate-950 text-sm text-slate-600 dark:text-slate-300">
+              <Smartphone size={18} className="shrink-0 rotate-90" aria-hidden="true" />
+              <span className="flex-1">Tournez l'écran en paysage pour lire les colonnes plus confortablement.</span>
+              <button type="button" onClick={() => setRotateHintDismissed(true)} aria-label="Masquer le conseil" className="w-8 h-8 inline-flex items-center justify-center rounded-md hover:bg-slate-200 dark:hover:bg-slate-800">
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
+          {/* Sheet, column layout: lyrics on the left, the chords of each line on the right */}
+          {isColumns && (
+            <div
+              className={`select-text grid items-baseline gap-x-6 gap-y-1.5 transition-all ${isPinching ? 'duration-0' : 'duration-200'}`}
+              style={{
+                fontSize: `${fontSize * (isNarrowPortrait ? 0.82 : 1)}rem`,
+                // Chords take up to 45% of the width and wrap beyond, so lyrics keep most of the room.
+                gridTemplateColumns: showChords ? 'minmax(0, max-content) fit-content(45%)' : 'minmax(0, 1fr)',
+              }}
+            >
+              {columnRows.map((row, i) => {
+                if (row.type === 'section') {
+                  return (
+                    <div key={i} className="col-span-full flex items-center gap-2.5 mt-7 mb-1.5 first:mt-0 font-sans" style={{ fontSize: 16 }}>
+                      <h2 className="m-0 font-sans text-xs font-semibold uppercase text-slate-500 dark:text-slate-400" style={{ letterSpacing: '0.08em' }}>{row.label}</h2>
+                    </div>
+                  );
+                }
+                if (row.type === 'blank') return <div key={i} className="col-span-full h-3" aria-hidden="true" />;
+                if (!showChords && !row.lyrics.trim()) return null;
+                return (
+                  <React.Fragment key={i}>
+                    <span className="font-sans text-ink dark:text-slate-100">
+                      {row.lyrics.trim() ? renderStyledText(row.lyrics.trim()) : '\u00a0'}
+                    </span>
+                    {showChords && (
+                      <span className="flex flex-wrap gap-x-[0.9em] font-mono">
+                        {row.chords.map((chord, j) => {
+                          const display = processChord(chord);
+                          return display ? (
+                            <ChordTooltip key={j} chord={display}>
+                              {renderChordDisplay(display, chord)}
+                            </ChordTooltip>
+                          ) : null;
+                        })}
+                      </span>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Sheet, classic layout */}
+          {!isColumns && (
           <div className={`select-text transition-all ${usesChordLines ? 'font-mono' : 'font-sans'} ${isPinching ? 'duration-0' : 'duration-200'}`} style={{ fontSize: `${fontSize}rem` }}>
             {parsedLines.map((lineObj, lineIdx) => {
               if (lineObj.isSection) {
@@ -628,6 +739,7 @@ const SongSheet: React.FC<SongSheetProps> = ({
               );
             })}
           </div>
+          )}
 
           {song.notes && song.notes.trim() && (
             <section className="flex flex-col gap-2 p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-100 dark:bg-slate-950">

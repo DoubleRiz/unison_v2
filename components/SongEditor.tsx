@@ -1,7 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
-import { Song, Group, GENRES } from '../types';
-import { Save, X, Globe, Lock, Music2, Users, Tag, Plus, StickyNote } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Song, Group, GENRES, SongDisplayMode } from '../types';
+import { Save, X, Globe, Lock, Music2, Users, Tag, Plus, StickyNote, ArrowRightLeft } from 'lucide-react';
+import { Segmented } from './ui/Segmented';
+import { convertSongContent, detectSongFormat, joinColumns, songChordList, splitColumns, syncPaneLines } from '../utils/chordColumns';
 
 interface SongEditorProps {
   initialSong?: Song | null;
@@ -12,6 +14,17 @@ interface SongEditorProps {
   onSave: (song: Song) => void;
   onCancel: () => void;
 }
+
+type Panes = { lyrics: string[]; chords: string[] };
+
+// Faint lines every text line, so a lyric and its chords read on the same row across the divider.
+// The line height is set inline: responsive text-* classes would otherwise impose their own.
+const PANE_LINE: React.CSSProperties = { lineHeight: '1.625em' };
+const ROW_GUIDES: React.CSSProperties = {
+  backgroundImage: 'repeating-linear-gradient(to bottom, transparent 0, transparent calc(1.625em - 1px), rgba(127,127,127,0.14) calc(1.625em - 1px), rgba(127,127,127,0.14) 1.625em)',
+  backgroundPosition: '0 1rem', // the panes' top padding
+  backgroundAttachment: 'local',
+};
 
 const KEYS = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'];
 
@@ -25,6 +38,7 @@ const SongEditor: React.FC<SongEditorProps> = ({ initialSong, groups, existingTa
   const [keyQuality, setKeyQuality] = useState('Major'); // 'Major' or 'Minor'
 
   const [content, setContent] = useState('');
+  const [displayMode, setDisplayMode] = useState<SongDisplayMode>('classic');
   const [notes, setNotes] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [audioUrl, setAudioUrl] = useState('');
@@ -50,6 +64,7 @@ const SongEditor: React.FC<SongEditorProps> = ({ initialSong, groups, existingTa
       setKeyQuality(isMinor ? 'Minor' : 'Major');
 
       setContent(initialSong.content);
+      setDisplayMode(initialSong.displayMode ?? detectSongFormat(initialSong.content));
       setNotes(initialSong.notes || '');
       setYoutubeUrl(initialSong.youtubeUrl || '');
       setAudioUrl(initialSong.audioUrl || '');
@@ -72,6 +87,7 @@ const SongEditor: React.FC<SongEditorProps> = ({ initialSong, groups, existingTa
 This is how you write a song
 [Am]             [F]
 With sections clearly marked`);
+      setDisplayMode('classic');
       setNotes('');
       setYoutubeUrl('');
       setAudioUrl('');
@@ -122,6 +138,7 @@ With sections clearly marked`);
       bpm: bpm === '' ? null : Number(bpm),
       key: fullKey,
       content,
+      displayMode,
       notes,
       youtubeUrl,
       audioUrl,
@@ -131,6 +148,39 @@ With sections clearly marked`);
       tags: tags
     });
   };
+
+  // The text may be written in the other format than the one chosen: offer to rewrite it.
+  // Lyrics alone (no chord yet) suit both formats.
+  const writtenFormat = detectSongFormat(content);
+  const formatMismatch = content.trim() !== '' && writtenFormat !== displayMode && songChordList(content).length > 0;
+  const convertContent = () => setContent(convertSongContent(content, displayMode));
+  const isColumns = displayMode === 'columns';
+
+  // Column songs are edited in two panes split by a divider: lyrics on the left, chords on the right.
+  // The panes hold the text while editing; `content` is rebuilt from them.
+  const showPanes = isColumns && !formatMismatch;
+  const [panes, setPanes] = useState<Panes | null>(null);
+  const lastJoined = useRef<string | null>(null);
+  useEffect(() => {
+    if (!showPanes) { lastJoined.current = null; return; }
+    if (content !== lastJoined.current) {
+      setPanes(splitColumns(content));
+      lastJoined.current = content;
+    }
+  }, [showPanes, content]);
+
+  const editPane = (side: keyof Panes, value: string) => {
+    if (!panes) return;
+    const other: keyof Panes = side === 'lyrics' ? 'chords' : 'lyrics';
+    const after = value.split('\n');
+    const next = { [side]: after, [other]: syncPaneLines(panes[side], after, panes[other]) } as Panes;
+    const joined = joinColumns(next.lyrics, next.chords);
+    lastJoined.current = joined;
+    setPanes(next);
+    setContent(joined);
+  };
+  const paneRows = Math.max(16, panes?.lyrics.length ?? 0, panes?.chords.length ?? 0);
+  const paneClass = 'block w-full bg-transparent px-3 sm:px-4 py-4 font-mono text-xs sm:text-sm focus:outline-none resize-none overflow-y-hidden whitespace-pre';
 
   // Calculate Sounding Key
   const currentKey = `${keyRoot}${keyQuality === 'Minor' ? 'm' : ''}`;
@@ -335,16 +385,79 @@ With sections clearly marked`);
       )}
 
       <div className="mb-6">
-        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-          Contenu (accords entre crochets [Am], sections [Refrain], [Couplet]…)
-        </label>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <label htmlFor="song-content" className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+            {showPanes
+              ? 'Contenu : paroles à gauche, accords de la ligne à droite'
+              : isColumns
+              ? 'Contenu : paroles à gauche, accords de la ligne à droite (séparés par deux espaces ou une tabulation)'
+              : 'Contenu (accords entre crochets [Am], sections [Refrain], [Couplet]…)'}
+          </label>
+          <Segmented<SongDisplayMode>
+            label="Disposition des accords"
+            size="sm"
+            value={displayMode}
+            onChange={setDisplayMode}
+            options={[{ value: 'classic', label: 'Classique' }, { value: 'columns', label: 'Colonnes' }]}
+          />
+        </div>
+        {formatMismatch && (
+          <div className="flex flex-wrap items-center gap-3 p-3 mb-2 border border-slate-200 dark:border-slate-800 rounded-lg bg-slate-100 dark:bg-slate-950 text-sm text-slate-600 dark:text-slate-300">
+            <span className="flex-1 min-w-[200px]">
+              Le texte est écrit en {writtenFormat === 'columns' ? 'colonnes' : 'classique'}. La chanson s'affichera en {isColumns ? 'colonnes' : 'classique'} ; vous pouvez aussi réécrire le texte dans ce format.
+              {!isColumns && ' Les accords seront répartis régulièrement au-dessus des paroles, à ajuster à la main.'}
+            </span>
+            <button type="button" onClick={convertContent} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-semibold hover:border-slate-500">
+              <ArrowRightLeft size={14} /> Convertir en {isColumns ? 'colonnes' : 'classique'}
+            </button>
+            <button type="button" onClick={() => setDisplayMode(writtenFormat)} className="h-9 px-2 font-semibold text-slate-600 dark:text-slate-400 underline underline-offset-[3px] decoration-1">
+              Afficher en {writtenFormat === 'columns' ? 'colonnes' : 'classique'}
+            </button>
+          </div>
+        )}
+        {showPanes && panes ? (
+          <div className="border border-slate-400 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-950 focus-within:border-cyan-500 overflow-hidden">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(7rem,35%)] border-b border-slate-200 dark:border-slate-800 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <div className="px-4 py-1.5">Paroles et sections</div>
+              <div className="px-4 py-1.5 border-l-2 border-slate-300 dark:border-slate-700">Accords</div>
+            </div>
+            <div className="h-96 overflow-y-auto">
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(7rem,35%)] min-h-full text-xs sm:text-sm" style={ROW_GUIDES}>
+                <textarea
+                  id="song-content"
+                  aria-label="Paroles et sections"
+                  wrap="off"
+                  rows={paneRows}
+                  style={PANE_LINE}
+                  value={panes.lyrics.join('\n')}
+                  onChange={(e) => editPane('lyrics', e.target.value)}
+                  className={`${paneClass} text-slate-700 dark:text-slate-300`}
+                  placeholder={`Refrain\nComme un souffle fragile,\nTa parole se donne.`}
+                />
+                <textarea
+                  aria-label="Accords de la ligne"
+                  wrap="off"
+                  rows={paneRows}
+                  style={PANE_LINE}
+                  value={panes.chords.join('\n')}
+                  onChange={(e) => editPane('chords', e.target.value)}
+                  className={`${paneClass} border-l-2 border-slate-300 dark:border-slate-700 text-cyan-600 dark:text-cyan-400 font-semibold`}
+                  placeholder={`\nEm  Am\nB7  Em`}
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
         <div className="relative">
           <textarea
+            id="song-content"
             required
             value={content}
             onChange={(e) => setContent(e.target.value)}
             className="w-full h-96 bg-slate-50 dark:bg-slate-950 border border-slate-400 dark:border-slate-700 rounded-lg px-4 py-4 font-mono text-sm focus:outline-none focus:border-cyan-500 text-slate-700 dark:text-slate-300 leading-relaxed resize-none"
-            placeholder={`[Intro]
+            placeholder={isColumns ? `[Refrain]
+Comme un souffle fragile,     Em  Am
+Ta parole se donne.           B7  Em` : `[Intro]
 [C]      [G]
 
 [Verse 1]
@@ -352,9 +465,10 @@ With sections clearly marked`);
 This is how you write a song...`}
           />
           <div className="absolute top-2 right-2 opacity-50 text-[10px] text-slate-500 bg-slate-50/80 dark:bg-slate-900/80 px-2 py-1 rounded pointer-events-none border border-slate-200 dark:border-slate-800">
-            Alignez avec des espaces
+            {isColumns ? 'Accords sans crochets acceptés' : 'Alignez avec des espaces'}
           </div>
         </div>
+        )}
       </div>
 
       {/* Notes / Verses */}

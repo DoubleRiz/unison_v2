@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { Song, SetlistTextNote, TiptapNode } from '../types';
-import { transposeContent, transpose, getSectionType } from './musicLogic';
+import { transpose, getSectionType } from './musicLogic';
+import { transposeSongContent } from './chordColumns';
 import { flattenParagraphRuns, tokenizeRuns, wrapTokensToLines, TextToken } from './setlistDocumentText';
 import { TEXT_COLORS, TEXT_SIZES } from '../constants/textNoteStyles';
 
@@ -52,7 +53,8 @@ export const renderSongToPdf = (ctx: PdfContext, song: Song, transposeSemitones:
   doc.setFont('courier', 'normal');
   doc.setFontSize(11);
 
-  const transposedContent = transposeContent(song.content, transposeSemitones);
+  // Courier keeps column songs aligned as written; bare chords on the right are transposed too.
+  const transposedContent = transposeSongContent(song.content, transposeSemitones);
   const lines = transposedContent.split(/\r?\n/);
 
   lines.forEach((line) => {

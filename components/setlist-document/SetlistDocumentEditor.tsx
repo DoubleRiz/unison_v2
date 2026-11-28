@@ -13,6 +13,7 @@ import { SongLookupContext } from './SongLookupContext';
 import { SongBlockActionsContext, SongBlockActions } from './SongBlockActionsContext';
 import { DocumentToolbar } from './DocumentToolbar';
 import { buildInitialDocument, getSongBlockIds, removeOrphanSongBlocks } from '../../utils/setlistDocument';
+import { notifyError } from '../ui/Toast';
 
 interface SetlistDocumentEditorProps {
   setlist: Setlist;
@@ -76,7 +77,7 @@ export const SetlistDocumentEditor: React.FC<SetlistDocumentEditorProps> = ({
         .eq('id', setlist.id)
         .then(({ error }) => {
           if (error) {
-            console.error('Failed to persist initial layout document:', error);
+            notifyError('Impossible d\'enregistrer la mise en page de la setlist.', error);
             return;
           }
           onLayoutDocumentChange(initialContent.doc);
@@ -96,7 +97,8 @@ export const SetlistDocumentEditor: React.FC<SetlistDocumentEditorProps> = ({
   const saveDocument = async (doc: TiptapDoc) => {
     const { error } = await supabase.from('setlists').update({ layout_document: doc }).eq('id', setlist.id);
     if (error) {
-      console.error('Failed to save layout document:', error);
+      // Le contenu reste dans l'éditeur : la prochaine modification retentera l'enregistrement.
+      notifyError('Impossible d\'enregistrer la mise en page de la setlist.', error);
       return;
     }
     onLayoutDocumentChange(doc);
@@ -143,7 +145,7 @@ export const SetlistDocumentEditor: React.FC<SetlistDocumentEditorProps> = ({
       .single();
 
     if (error) {
-      console.error('Failed to insert song into setlist:', error);
+      notifyError(`Impossible d'ajouter « ${song.title} » à la setlist.`, error);
       return;
     }
     if (!data || !editor) return;

@@ -74,6 +74,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onSelectSong, onNavigate, onO
         bpm: s.bpm,
         key: s.original_key,
         content: s.content,
+        displayMode: s.display_mode ?? null,
         is_public: s.is_public,
         genres: s.genres || [],
         tags: s.tags || [],
